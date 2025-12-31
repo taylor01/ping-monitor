@@ -5,19 +5,32 @@ services:
     container_name: ping-monitor
     restart: unless-stopped
     environment:
-      - DD_API_KEY=${DD_API_KEY}
-      - DD_SITE=datadoghq.com
+      # Site identification
       - SITE_NAME=${SITE_NAME:-default}
-      - PING_INTERVAL=60
-      - PING_COUNT=3
-      - PING_TIMEOUT=2
+
+      # Rails API (Phase 1 - optional, will buffer if not available)
+      - RAILS_API_URL=${RAILS_API_URL:-}
+      - API_KEY=${API_KEY:-}
+
+      # Datadog (optional if Rails API configured)
+      - DD_API_KEY=${DD_API_KEY:-}
+      - DD_SITE=${DD_SITE:-datadoghq.com}
+
+      # Ping settings
+      - PING_INTERVAL=${PING_INTERVAL:-60}
+      - PING_COUNT=${PING_COUNT:-3}
+      - PING_TIMEOUT=${PING_TIMEOUT:-2}
+      - MAX_WORKERS=${MAX_WORKERS:-20}
+
       # Optional: central config URL (leave empty to use local hosts.json)
       - CONFIG_URL=${CONFIG_URL:-}
     volumes:
       - ./hosts.json:/config/hosts.json:ro
-      - ping-cache:/data
+      - ping-buffer:/data  # SQLite buffer for measurements
     cap_add:
-      - NET_RAW
-    user: root
+      - NET_RAW  # Required for ICMP pinging
+    user: root   # Required for NET_RAW capability
+
 volumes:
-  ping-cache:
+  ping-buffer:
+    driver: local
