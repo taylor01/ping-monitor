@@ -1,15 +1,16 @@
 """
-Datadog metrics integration
+Datadog metrics and logs integration
 """
 
 import requests
-import logging
 import time
-from typing import List
+from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from .models import Host, PingResult
+from .logging_config import get_logger, get_correlation_id
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DatadogClient:
@@ -138,4 +139,197 @@ class DatadogClient:
                     f"{response.status_code} - {response.text}"
                 )
         except Exception as e:
-            logger.error(f"Failed to send Datadog metrics for {host.name}: {e}")
+            logger.error("datadog_metric_error", host=host.name, error=str(e))
+
+
+class DatadogLogsClient:
+    """
+    Datadog Logs API client for sending structured logs (US only)
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        site_name: str = "default",
+        service: str = "ping-monitor",
+    ):
+        """
+        Initialize Datadog Logs client
+
+        Args:
+            api_key: Datadog API key
+            site_name: Site name tag
+            service: Service name for logs
+        """
+        self.api_key = api_key
+        self.site_name = site_name
+        self.service = service
+        self.logs_url = "https://http-intake.logs.datadoghq.com/api/v2/logs"
+
+    def send_log(
+        self,
+        message: str,
+        status: str = "info",
+        attributes: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> bool:
+        """
+        Send a structured log to Datadog
+
+        Args:
+            message: Log message
+            status: Log status (info, warning, error)
+            attributes: Additional structured attributes
+            tags: List of tags
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Get correlation ID from context
+        correlation_id = get_correlation_id()
+
+        # Build log payload
+        log_entry = {
+            "message": message,
+            "ddsource": "ping-monitor",
+            "ddtags": f"env:production,site:{self.site_name},service:{self.service}",
+            "service": self.service,
+            "status": status,
+            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+        }
+
+        # Add correlation ID
+        if correlation_id:
+            log_entry["correlation_id"] = correlation_id
+
+        # Add custom attributes
+        if attributes:
+            log_entry.update(attributes)
+
+        # Add custom tags
+        if tags:
+            existing_tags = log_entry["ddtags"]
+            log_entry["ddtags"] = f"{existing_tags},{','.join(tags)}"
+
+        try:
+            response = requests.post(
+                self.logs_url,
+                headers={
+                    "DD-API-KEY": self.api_key,
+                    "Content-Type": "application/json",
+                },
+                json=[log_entry],
+                timeout=5,
+            )
+
+            if not response.ok:
+                logger.error(
+                    "datadog_logs_error",
+                    status_code=response.status_code,
+                    response=response.text,
+                )
+                return False
+
+            return True
+
+        except Exception as e:
+            logger.error("datadog_logs_send_failed", error=str(e))
+            return False
+
+    def log_state_change(
+        self,
+        host: str,
+        ip: str,
+        previous_state: str,
+        current_state: str,
+        latency_ms: Optional[float] = None,
+        packet_loss: Optional[float] = None,
+    ) -> None:
+        """
+        Log a host state change event
+
+        Args:
+            host: Host name
+            ip: Host IP address
+            previous_state: Previous state (up/down)
+            current_state: Current state (up/down)
+            latency_ms: Current latency if up
+            packet_loss: Current packet loss if up
+        """
+        status = "error" if current_state == "down" else "info"
+
+        message = f"Host state change: {host} ({ip}) {previous_state} → {current_state}"
+
+        attributes = {
+            "host_name": host,
+            "host_ip": ip,
+            "previous_state": previous_state,
+            "current_state": current_state,
+            "event_type": "state_change",
+        }
+
+        if latency_ms is not None:
+            attributes["latency_ms"] = latency_ms
+        if packet_loss is not None:
+            attributes["packet_loss_pct"] = packet_loss
+
+        tags = [f"host:{host}", f"ip:{ip}", f"transition:{previous_state}_to_{current_state}"]
+
+        self.send_log(message, status, attributes, tags)
+
+    def log_ping_cycle(
+        self,
+        total_hosts: int,
+        hosts_up: int,
+        hosts_down: int,
+        avg_latency_ms: float,
+        duration_seconds: float,
+    ) -> None:
+        """
+        Log a ping cycle summary
+
+        Args:
+            total_hosts: Total number of hosts pinged
+            hosts_up: Number of hosts up
+            hosts_down: Number of hosts down
+            avg_latency_ms: Average latency for hosts that are up
+            duration_seconds: Time taken for ping cycle
+        """
+        message = f"Ping cycle: {hosts_up}/{total_hosts} hosts up, avg latency {avg_latency_ms:.1f}ms"
+
+        attributes = {
+            "event_type": "ping_cycle",
+            "total_hosts": total_hosts,
+            "hosts_up": hosts_up,
+            "hosts_down": hosts_down,
+            "avg_latency_ms": round(avg_latency_ms, 2),
+            "duration_seconds": round(duration_seconds, 2),
+        }
+
+        status = "warning" if hosts_down > 0 else "info"
+
+        self.send_log(message, status, attributes)
+
+    def log_monitor_event(
+        self,
+        event_type: str,
+        message: str,
+        status: str = "info",
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Log a monitor lifecycle event (startup, shutdown, error, config_change)
+
+        Args:
+            event_type: Type of event
+            message: Event message
+            status: Log status
+            attributes: Additional attributes
+        """
+        attrs = {"event_type": event_type}
+        if attributes:
+            attrs.update(attributes)
+
+        tags = [f"event:{event_type}"]
+
+        self.send_log(message, status, attrs, tags)

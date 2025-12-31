@@ -2,13 +2,13 @@
 ICMP ping functionality using icmplib
 """
 
-import logging
 from typing import List
 from datetime import datetime, timezone
 from icmplib import multiping
 from .models import Host, PingResult
+from .logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Pinger:
@@ -88,32 +88,25 @@ class Pinger:
                         ),
                     )
 
-                    # Log result
-                    status = "UP" if ping_result.is_up else "DOWN"
-                    latency = (
-                        f"{ping_result.latency_ms:.1f}ms"
-                        if ping_result.latency_ms
-                        else "N/A"
-                    )
-                    loss = (
-                        f"{ping_result.packet_loss:.0f}%"
-                        if ping_result.packet_loss is not None
-                        else "N/A"
-                    )
-
+                    # Log result with structured logging
                     logger.info(
-                        f"{host.name:20} ({host.ip:15}) - {status:4} | "
-                        f"Latency: {latency:8} | Loss: {loss}"
+                        "host_ping_result",
+                        host=host.name,
+                        ip=host.ip,
+                        is_up=ping_result.is_up,
+                        latency_ms=ping_result.latency_ms,
+                        packet_loss=ping_result.packet_loss,
+                        jitter_ms=ping_result.jitter_ms,
                     )
 
                     ping_results.append(ping_result)
                 else:
                     # No result for this host (shouldn't happen)
-                    logger.warning(f"No ping result for {host.name} ({host.ip})")
+                    logger.warning("no_ping_result", host=host.name, ip=host.ip)
 
-            logger.info(f"Completed pinging {len(ping_results)} hosts")
+            logger.info("ping_batch_complete", host_count=len(ping_results))
             return ping_results
 
         except Exception as e:
-            logger.error(f"Error during ping operation: {e}")
+            logger.error("ping_operation_error", error=str(e))
             return []
