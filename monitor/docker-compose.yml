@@ -25,7 +25,7 @@ services:
       # Optional: central config URL (leave empty to use local hosts.json)
       - CONFIG_URL=${CONFIG_URL:-}
     volumes:
-      - ./hosts.json:/config/hosts.json:ro
+      - ./hosts.json:/config/hosts.json:ro,z
       - ping-buffer:/data  # SQLite buffer for measurements
     cap_add:
       - NET_RAW  # Required for ICMP pinging
