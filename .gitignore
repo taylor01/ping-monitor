@@ -28,6 +28,12 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
 # Virtual environments
 venv/
 ENV/
