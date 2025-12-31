@@ -878,12 +878,43 @@ kamal app exec 'bin/rails db:migrate'
 **Recommendation**: Set up during Phase 8
 
 ### 4. Authentication
-**Options**:
-- API key (simple, shared across monitors)
-- Per-site API keys (more secure)
-- OAuth (overkill for 3 monitors)
+**Decision**: JWT with Refresh Tokens
 
-**Recommendation**: Single API key initially, per-site later if needed
+**Implementation**:
+- **Access Token**: Short-lived (15-60 min), sent with each request
+- **Refresh Token**: Long-lived (7-30 days), used to obtain new access tokens
+- **Per-site credentials**: Each monitor has unique site_id + secret
+- **Token revocation**: Can invalidate specific site tokens
+
+**Auth Endpoints**:
+```
+POST /api/v1/auth/token     # Initial auth (site_id + secret → tokens)
+POST /api/v1/auth/refresh   # Refresh expired access token
+DELETE /api/v1/auth/revoke  # Revoke refresh token (admin)
+```
+
+**Monitor Flow**:
+```python
+# On startup
+tokens = await api.authenticate(site_id, site_secret)
+access_token = tokens["access_token"]
+refresh_token = tokens["refresh_token"]
+expires_at = time.time() + tokens["expires_in"]
+
+# Before each request
+if time.time() > expires_at - 60:  # Refresh 1 min early
+    tokens = await api.refresh(refresh_token)
+    access_token = tokens["access_token"]
+    expires_at = time.time() + tokens["expires_in"]
+
+# API calls
+await api.post_measurements(batch, access_token)
+```
+
+**Rails Implementation**:
+- `jwt` gem for token generation/validation
+- `Site` model stores hashed secret + refresh token
+- Middleware validates access token on protected routes
 
 ### 5. Future Web UI
 **When**: After Phase 9 (post-MVP)
