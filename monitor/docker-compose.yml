@@ -1,0 +1,23 @@
+services:
+  ping-monitor:
+    build: .
+    image: ping-monitor:latest
+    container_name: ping-monitor
+    restart: unless-stopped
+    environment:
+      - DD_API_KEY=${DD_API_KEY}
+      - DD_SITE=datadoghq.com
+      - SITE_NAME=${SITE_NAME:-default}
+      - PING_INTERVAL=60
+      - PING_COUNT=3
+      - PING_TIMEOUT=2
+      # Optional: central config URL (leave empty to use local hosts.json)
+      - CONFIG_URL=${CONFIG_URL:-}
+    volumes:
+      - ./hosts.json:/config/hosts.json:ro
+      - ping-cache:/data
+    cap_add:
+      - NET_RAW
+    user: root
+volumes:
+  ping-cache:
