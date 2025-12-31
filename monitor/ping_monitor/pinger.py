@@ -27,15 +27,20 @@ class Pinger:
         self.count = count
         self.timeout = timeout
 
-    async def ping_hosts(self, hosts: List[Host]) -> List[PingResult]:
+    def ping_hosts(self, hosts: List[Host]) -> List[PingResult]:
         """
-        Ping multiple hosts concurrently
+        Ping multiple hosts concurrently (using icmplib's internal concurrency)
 
         Args:
             hosts: List of Host objects to ping
 
         Returns:
             List of PingResult objects
+
+        Note:
+            This is a synchronous method because icmplib.multiping() is synchronous
+            but handles concurrency internally. We wrap this in asyncio.to_thread()
+            when calling from async code.
         """
         if not hosts:
             return []
