@@ -4,6 +4,9 @@ class AnomalyDetectionService
   PACKET_LOSS_WARNING = 10          # > 10% loss = warning
   PACKET_LOSS_CRITICAL = 50         # > 50% loss = critical
 
+  # Sentinel to distinguish "not provided" from "nil"
+  NOT_PROVIDED = Object.new.freeze
+
   class << self
     def detect_for_batch(measurements)
       return if measurements.empty?
@@ -14,13 +17,15 @@ class AnomalyDetectionService
 
       measurements.each do |measurement|
         baseline = baselines_by_host[measurement.host]
-        detect_for_measurement(measurement, baseline)
+        detect_for_measurement(measurement, baseline: baseline)
       end
     end
 
-    def detect_for_measurement(measurement, baseline = nil)
-      # Look up baseline if not provided (for direct calls)
-      baseline ||= measurement.site.baselines.find_by(host: measurement.host)
+    def detect_for_measurement(measurement, baseline: NOT_PROVIDED)
+      # Only look up baseline if not explicitly provided (for direct calls)
+      if baseline == NOT_PROVIDED
+        baseline = measurement.site.baselines.find_by(host: measurement.host)
+      end
 
       # Cold start: skip detection if no baseline exists yet
       return if baseline.nil?
