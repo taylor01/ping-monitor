@@ -131,7 +131,7 @@ RSpec.describe "Api::V1::Baselines", type: :request do
 
         expect(response).to have_http_status(:not_found)
         expect(json_response["errors"].first["code"]).to eq("not_found")
-        expect(json_response["errors"].first["detail"]).to include("nonexistent-host")
+        expect(json_response["errors"].first["detail"]).to eq("No baseline exists for the specified host")
       end
     end
 

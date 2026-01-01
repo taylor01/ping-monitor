@@ -7,37 +7,32 @@ class BaselineCalculationService
       window_start = WINDOW_HOURS.hours.ago
       window_end = Time.current
 
-      # Get unique hosts with measurements in window
-      hosts = site.measurements
-                  .where("timestamp > ?", window_start)
-                  .distinct
-                  .pluck(:host, :ip)
+      # Fetch all measurements in one query, grouped by host
+      measurements_by_host = site.measurements
+                                 .where("timestamp > ?", window_start)
+                                 .where(is_up: true)
+                                 .pluck(:host, :ip, :latency_ms)
+                                 .group_by(&:first)
 
-      hosts.each do |host, ip|
-        calculate_for_host(site, host, ip, window_start, window_end)
-      end
-    end
+      # Preload existing baselines to avoid N+1 on find_or_initialize_by
+      existing_baselines = site.baselines.index_by(&:host)
 
-    def calculate_for_host(site, host, ip, window_start, window_end)
-      measurements = site.measurements
-                         .where(host: host)
-                         .where("timestamp > ?", window_start)
-                         .where(is_up: true)
-                         .pluck(:latency_ms)
-                         .compact
+      measurements_by_host.each do |host, records|
+        ip = records.first[1]
+        latencies = records.map { |r| r[2] }.compact
 
-      return if measurements.size < MIN_SAMPLES
+        next if latencies.size < MIN_SAMPLES
 
-      stats = calculate_stats(measurements)
+        stats = calculate_stats(latencies)
+        baseline = existing_baselines[host] || site.baselines.build(host: host)
 
-      site.baselines.find_or_initialize_by(host: host).tap do |baseline|
         baseline.assign_attributes(
           ip: ip,
           latency_mean: stats[:mean],
           latency_stddev: stats[:stddev],
           latency_p95: stats[:p95],
           latency_p99: stats[:p99],
-          sample_count: measurements.size,
+          sample_count: latencies.size,
           window_start: window_start,
           window_end: window_end
         )

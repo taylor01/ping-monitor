@@ -11,7 +11,7 @@ module Api
         render json: BaselineSerializer.new(baseline).serializable_hash
       rescue ActiveRecord::RecordNotFound
         render_jsonapi_error(
-          "No baseline exists for host '#{params[:host]}'",
+          "No baseline exists for the specified host",
           status: :not_found,
           code: "not_found"
         )

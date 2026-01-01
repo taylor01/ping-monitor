@@ -6,11 +6,21 @@ class AnomalyDetectionService
 
   class << self
     def detect_for_batch(measurements)
-      measurements.each { |m| detect_for_measurement(m) }
+      return if measurements.empty?
+
+      # Preload all baselines for the site to avoid N+1 queries
+      site = measurements.first.site
+      baselines_by_host = site.baselines.index_by(&:host)
+
+      measurements.each do |measurement|
+        baseline = baselines_by_host[measurement.host]
+        detect_for_measurement(measurement, baseline)
+      end
     end
 
-    def detect_for_measurement(measurement)
-      baseline = find_baseline(measurement)
+    def detect_for_measurement(measurement, baseline = nil)
+      # Look up baseline if not provided (for direct calls)
+      baseline ||= measurement.site.baselines.find_by(host: measurement.host)
 
       # Cold start: skip detection if no baseline exists yet
       return if baseline.nil?
@@ -24,10 +34,6 @@ class AnomalyDetectionService
     end
 
     private
-
-    def find_baseline(measurement)
-      measurement.site.baselines.find_by(host: measurement.host)
-    end
 
     def detect_host_status_change(measurement, baseline)
       if !measurement.is_up
