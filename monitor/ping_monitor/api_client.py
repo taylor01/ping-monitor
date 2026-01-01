@@ -82,9 +82,11 @@ class RailsAPIClient:
             True if authentication succeeded, False otherwise
         """
         try:
+            # Use regular JSON content type for auth (not JSON:API)
             response = await self.client.post(
                 f"{self.base_url}/api/v1/auth/token",
                 json={"site_id": self.site_name, "secret": self.site_secret},
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code == 200:
@@ -118,9 +120,11 @@ class RailsAPIClient:
             return await self.authenticate()
 
         try:
+            # Use regular JSON content type for auth (not JSON:API)
             response = await self.client.post(
                 f"{self.base_url}/api/v1/auth/refresh",
                 json={"refresh_token": self._refresh_token},
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code == 200:
@@ -153,8 +157,12 @@ class RailsAPIClient:
                 raise AuthenticationError("Failed to authenticate with Rails API")
 
     def _get_auth_headers(self) -> Dict[str, str]:
-        """Get headers with current access token"""
-        return {"Authorization": f"Bearer {self._access_token}"}
+        """Get headers with current access token and JSON:API content type"""
+        return {
+            "Authorization": f"Bearer {self._access_token}",
+            "Content-Type": "application/vnd.api+json",
+            "Accept": "application/vnd.api+json",
+        }
 
     async def post_measurements(self, batch: MeasurementBatch) -> Dict[str, Any]:
         """
