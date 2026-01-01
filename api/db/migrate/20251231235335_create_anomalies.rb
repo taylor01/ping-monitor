@@ -15,8 +15,8 @@ class CreateAnomalies < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :anomalies, [:site_id, :created_at]
+    add_index :anomalies, [ :site_id, :created_at ]
     add_index :anomalies, :resolved_at
-    add_index :anomalies, [:severity, :created_at], where: "resolved_at IS NULL", name: "index_active_anomalies_by_severity"
+    add_index :anomalies, [ :severity, :created_at ], where: "resolved_at IS NULL", name: "index_active_anomalies_by_severity"
   end
 end

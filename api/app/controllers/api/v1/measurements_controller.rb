@@ -62,7 +62,7 @@ module Api
         attrs.permit(
           :site,
           :timestamp,
-          measurements: [:host, :ip, :latency_ms, :packet_loss, :jitter_ms, :is_up]
+          measurements: [ :host, :ip, :latency_ms, :packet_loss, :jitter_ms, :is_up ]
         )
       end
     end

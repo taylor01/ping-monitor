@@ -31,11 +31,11 @@ module Authenticatable
 
   def render_unauthorized(message = "Unauthorized")
     render json: {
-      errors: [{
+      errors: [ {
         status: "401",
         title: "Unauthorized",
         detail: message
-      }]
+      } ]
     }, status: :unauthorized
   end
 end

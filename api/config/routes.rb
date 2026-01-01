@@ -10,13 +10,13 @@ Rails.application.routes.draw do
 
       # Sites
       get "sites/me", to: "sites#me"
-      resources :sites, only: [:index, :show]
+      resources :sites, only: [ :index, :show ]
 
       # Measurements
-      resources :measurements, only: [:index, :create]
+      resources :measurements, only: [ :index, :create ]
 
       # Anomalies
-      resources :anomalies, only: [:index, :show] do
+      resources :anomalies, only: [ :index, :show ] do
         member do
           patch :resolve
         end

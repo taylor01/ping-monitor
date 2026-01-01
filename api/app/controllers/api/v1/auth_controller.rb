@@ -42,11 +42,11 @@ module Api
 
       def render_error(message, status:)
         render json: {
-          errors: [{
+          errors: [ {
             status: Rack::Utils.status_code(status).to_s,
             title: status.to_s.titleize,
             detail: message
-          }]
+          } ]
         }, status: status
       end
     end

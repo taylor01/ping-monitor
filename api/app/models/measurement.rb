@@ -7,7 +7,7 @@ class Measurement < ApplicationRecord
   validates :host, presence: true
   validates :ip, presence: true
   validates :timestamp, presence: true
-  validates :is_up, inclusion: { in: [true, false] }
+  validates :is_up, inclusion: { in: [ true, false ] }
 
   # Callbacks
   after_create :update_site_heartbeat

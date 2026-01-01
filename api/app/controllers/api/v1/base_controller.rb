@@ -14,12 +14,12 @@ module Api
 
       def render_jsonapi_error(message, status:, code: nil)
         render json: {
-          errors: [{
+          errors: [ {
             status: Rack::Utils.status_code(status).to_s,
             code: code,
             title: status.to_s.titleize.gsub("_", " "),
             detail: message
-          }]
+          } ]
         }, status: status
       end
 

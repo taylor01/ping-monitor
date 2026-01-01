@@ -7,6 +7,6 @@ FactoryBot.define do
     completion_tokens { 200 }
     analysis_text { "Analysis of the network issue..." }
     tool_calls { [] }
-    recommended_actions { ["Check router status", "Verify ISP connection"] }
+    recommended_actions { [ "Check router status", "Verify ISP connection" ] }
   end
 end

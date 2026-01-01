@@ -13,8 +13,8 @@ class CreateMeasurements < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :measurements, [:site_id, :host, :timestamp]
-    add_index :measurements, [:site_id, :timestamp]
+    add_index :measurements, [ :site_id, :host, :timestamp ]
+    add_index :measurements, [ :site_id, :timestamp ]
     add_index :measurements, :timestamp
   end
 end
