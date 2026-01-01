@@ -45,9 +45,14 @@ jobs:
             - **CHANGES REQUESTED** - Must be fixed before merging
 
             ONLY flag these issues:
-            1. Security vulnerabilities (SQL injection, XSS, auth bypass, secrets exposure)
+            1. Security vulnerabilities (SQL injection, XSS, auth bypass, secrets exposure, user input in error messages)
             2. Bugs that WILL cause failures (not hypothetical edge cases)
-            3. Critical performance issues (N+1 queries, missing indexes on large tables)
+            3. N+1 Query Issues (CRITICAL - always flag these):
+               - Database queries inside .each/.map loops
+               - find_by/where/find called per item instead of batch loading
+               - Fix pattern: Load all records with .index_by upfront, then hash lookup in loop
+               - Example: Instead of `items.each { |i| Model.find_by(x: i.x) }` use `models = Model.where(x: items.map(&:x)).index_by(&:x)` then `models[i.x]`
+            4. Missing database indexes on columns used in WHERE clauses
 
             DO NOT comment on:
             - Style preferences or minor refactoring suggestions
@@ -55,7 +60,7 @@ jobs:
             - Missing tests (unless for security-critical code)
             - Things that are already working correctly
 
-            If the code works and has no security/critical issues, APPROVE IT.
+            If the code works and has no security/N+1/critical issues, APPROVE IT.
             Keep feedback brief - max 3-5 bullet points if changes needed.
 
             Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
