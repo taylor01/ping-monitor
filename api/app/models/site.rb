@@ -45,6 +45,26 @@ class Site < ApplicationRecord
     active_anomalies.where(severity: :warning)
   end
 
+  # Availability history methods
+  def days_since_last_issue
+    last_anomaly = anomalies.where.not(severity: :info).order(created_at: :desc).first
+    return nil if last_anomaly.nil?
+
+    ((Time.current - last_anomaly.created_at) / 1.day).floor
+  end
+
+  def availability_streak
+    # Returns days since last warning/critical anomaly, or total monitoring days if none
+    days_since_last_issue || days_monitored
+  end
+
+  def days_monitored
+    first_measurement = measurements.order(:timestamp).first
+    return 0 if first_measurement.nil?
+
+    ((Time.current - first_measurement.timestamp) / 1.day).floor
+  end
+
   private
 
   def compute_status
