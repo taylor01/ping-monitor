@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  # Python Monitor Tests
+  test_python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: monitor
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: monitor/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run Python tests
+        run: pytest tests/ -v --cov=. --cov-report=term-missing
+
+  # Rails API Tests
+  test_rails:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          working-directory: api
+          bundler-cache: true
+
+      - name: Setup database
+        run: bin/rails db:setup
+        env:
+          RAILS_ENV: test
+
+      - name: Run RSpec tests
+        run: bundle exec rspec --format documentation
+
+  # Rails Security Scanning
+  scan_ruby:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          working-directory: api
+          bundler-cache: true
+
+      - name: Scan for common Rails security vulnerabilities
+        run: bin/brakeman --no-pager
+
+      - name: Scan for known security vulnerabilities in gems
+        run: bin/bundler-audit
+
+  # Rails Linting
+  lint_ruby:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    env:
+      RUBOCOP_CACHE_ROOT: tmp/rubocop
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          working-directory: api
+          bundler-cache: true
+
+      - name: Prepare RuboCop cache
+        uses: actions/cache@v4
+        env:
+          DEPENDENCIES_HASH: ${{ hashFiles('api/.ruby-version', 'api/**/.rubocop.yml', 'api/**/.rubocop_todo.yml', 'api/Gemfile.lock') }}
+        with:
+          path: api/${{ env.RUBOCOP_CACHE_ROOT }}
+          key: rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || 'default' }}
+          restore-keys: |
+            rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-
+
+      - name: Lint code for consistent style
+        run: bin/rubocop -f github
