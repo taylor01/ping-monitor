@@ -61,7 +61,10 @@ module Api
       end
 
       def measurement_params
-        attrs = params.require(:data).require(:attributes)
+        # Permit :type at data level to avoid JSON:API unpermitted param warning
+        data = params.require(:data)
+        data.permit(:type)
+        attrs = data.require(:attributes)
         attrs.permit(
           :site,
           :timestamp,
