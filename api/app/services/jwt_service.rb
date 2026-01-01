@@ -59,7 +59,7 @@ class JwtService
     private
 
     def secret_key
-      Rails.application.credentials.secret_key_base || ENV.fetch("SECRET_KEY_BASE")
+      Rails.application.secret_key_base
     end
   end
 
