@@ -21,6 +21,9 @@ Rails.application.routes.draw do
           patch :resolve
         end
       end
+
+      # Baselines
+      resources :baselines, only: [ :index, :show ], param: :host
     end
   end
 end

@@ -13,6 +13,9 @@ module Api
             measurements.each(&:save!)
           end
 
+          # Enqueue anomaly detection job
+          AnomalyDetectionJob.perform_later(measurements.map(&:id))
+
           batch_result = {
             id: SecureRandom.uuid,
             count: measurements.count,
