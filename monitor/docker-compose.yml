@@ -10,7 +10,7 @@ services:
 
       # Rails API (Phase 1 - optional, will buffer if not available)
       - RAILS_API_URL=${RAILS_API_URL:-}
-      - API_KEY=${API_KEY:-}
+      - SITE_SECRET=${SITE_SECRET:-}
 
       # Datadog (optional if Rails API configured)
       - DD_API_KEY=${DD_API_KEY:-}
