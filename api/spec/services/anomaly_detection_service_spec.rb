@@ -307,6 +307,50 @@ RSpec.describe AnomalyDetectionService do
     end
   end
 
+  describe ".detect_for_measurement with explicit baseline parameter" do
+    let(:measurement) do
+      create(:measurement,
+        site: site,
+        host: "unknown-host",
+        ip: "192.168.1.99",
+        is_up: true,
+        latency_ms: 10.0
+      )
+    end
+
+    it "does not query for baseline when baseline: nil is explicitly passed" do
+      baseline_queries = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        if payload[:sql].include?("baselines") && payload[:sql].include?("SELECT")
+          baseline_queries << payload[:sql]
+        end
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        described_class.detect_for_measurement(measurement, baseline: nil)
+      end
+
+      expect(baseline_queries).to be_empty,
+        "Expected no baseline queries when baseline: nil is explicit, got: #{baseline_queries.inspect}"
+    end
+
+    it "queries for baseline when baseline parameter is not provided" do
+      baseline_queries = []
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        if payload[:sql].include?("baselines") && payload[:sql].include?("SELECT")
+          baseline_queries << payload[:sql]
+        end
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        described_class.detect_for_measurement(measurement)
+      end
+
+      expect(baseline_queries.size).to eq(1),
+        "Expected 1 baseline query when parameter not provided, got: #{baseline_queries.size}"
+    end
+  end
+
   describe "context snapshot" do
     let!(:baseline_record) { baseline }
 
