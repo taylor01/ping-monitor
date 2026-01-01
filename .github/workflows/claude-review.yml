@@ -1,0 +1,67 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          # Include both Python and Ruby files
+          git diff origin/${{ github.base_ref }}...HEAD -- '*.rb' '*.py' '*.yml' > diff.txt
+          echo "has_changes=$([ -s diff.txt ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
+      - name: Claude Code Review
+        if: steps.diff.outputs.has_changes == 'true'
+        id: review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          DIFF=$(cat diff.txt | head -c 50000)  # Limit to 50KB
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -d @- <<EOF
+          {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 2048,
+            "messages": [{
+              "role": "user",
+              "content": "You are a senior engineer reviewing a pull request for a multi-site ping monitoring system.\n\nThis project has two main components:\n1. **Python Monitor** (monitor/) - asyncio-based ping monitor with structured logging\n2. **Rails API** (api/) - JSON:API backend for storing measurements and detecting anomalies\n\nYour job is to give a CLEAR VERDICT on whether this PR is ready to merge.\n\n## Review Criteria\n\n### For Python code:\n- Async/await correctness\n- Error handling and logging\n- Type hints usage\n- Security (no command injection, proper input validation)\n\n### For Ruby/Rails code:\n- Security (SQL injection, auth issues, secrets exposure)\n- Rails best practices (ActiveRecord usage, validations)\n- JSON:API compliance\n- Performance (N+1 queries, missing indexes)\n\n## Response Format\nStart your response with ONE of these verdicts:\n\n**APPROVED** - Code is ready to merge. No blocking issues.\n**CHANGES REQUESTED** - There are issues that MUST be fixed before merging.\n\n## Important Guidelines\n- Only request changes for ACTUAL PROBLEMS, not style preferences\n- If the code works correctly and has no security/performance issues, APPROVE it\n- Do NOT suggest improvements for the sake of suggesting improvements\n- Do NOT comment on things that are already correct\n- Keep feedback brief and actionable\n\n\`\`\`diff\n${DIFF}\n\`\`\`"
+            }]
+          }
+          EOF
+          )
+
+          REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text // "Review failed"')
+          echo "review<<EOF" >> $GITHUB_OUTPUT
+          echo "$REVIEW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post review comment
+        if: steps.diff.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = `${{ steps.review.outputs.review }}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Claude Code Review\n\n${review}`
+            })
