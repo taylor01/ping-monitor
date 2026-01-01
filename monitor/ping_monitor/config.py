@@ -17,7 +17,7 @@ class Config:
 
     # Rails API (Phase 1)
     rails_api_url: Optional[str] = None
-    api_key: Optional[str] = None
+    site_secret: Optional[str] = None
 
     # Datadog
     dd_api_key: Optional[str] = None
@@ -48,7 +48,7 @@ class Config:
         return cls(
             site_name=os.getenv("SITE_NAME", "default"),
             rails_api_url=os.getenv("RAILS_API_URL"),
-            api_key=cls._read_secret("API_KEY"),
+            site_secret=cls._read_secret("SITE_SECRET"),
             dd_api_key=cls._read_secret("DD_API_KEY"),
             dd_site=os.getenv("DD_SITE", "datadoghq.com"),
             ping_interval=int(os.getenv("PING_INTERVAL", "60")),
@@ -87,7 +87,7 @@ class Config:
     @property
     def has_rails_api(self) -> bool:
         """Check if Rails API is configured"""
-        return bool(self.rails_api_url and self.api_key)
+        return bool(self.rails_api_url and self.site_secret)
 
     @property
     def has_datadog(self) -> bool:

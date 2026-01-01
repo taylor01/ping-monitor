@@ -58,7 +58,9 @@ class PingMonitor:
         self.api_client: Optional[RailsAPIClient] = None
         if config.has_rails_api:
             self.api_client = RailsAPIClient(
-                base_url=config.rails_api_url, api_key=config.api_key
+                base_url=config.rails_api_url,
+                site_name=config.site_name,
+                site_secret=config.site_secret,
             )
 
         self.datadog_client: Optional[DatadogClient] = None
