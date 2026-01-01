@@ -30,8 +30,8 @@ def test_config_has_rails_api():
     config2 = Config(rails_api_url="https://api.example.com")
     assert config2.has_rails_api is False
 
-    # With both URL and key
-    config3 = Config(rails_api_url="https://api.example.com", api_key="test-key")
+    # With both URL and secret
+    config3 = Config(rails_api_url="https://api.example.com", site_secret="test-secret")
     assert config3.has_rails_api is True
 
 
@@ -62,7 +62,7 @@ def test_config_validate_datadog_only():
 
 def test_config_validate_rails_only():
     """Test validation passes with Rails API only"""
-    config = Config(rails_api_url="https://api.example.com", api_key="test-key")
+    config = Config(rails_api_url="https://api.example.com", site_secret="test-secret")
 
     # Should not raise
     config.validate()
