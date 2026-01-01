@@ -4,6 +4,9 @@ class Baseline < ApplicationRecord
 
   # Validations
   validates :host, presence: true
+  validates :ip, presence: true
+  validates :window_start, presence: true
+  validates :window_end, presence: true
   validates :host, uniqueness: { scope: :site_id }
 
   # Methods
