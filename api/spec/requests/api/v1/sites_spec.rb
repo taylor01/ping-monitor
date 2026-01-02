@@ -71,4 +71,66 @@ RSpec.describe "Api::V1::Sites", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
   end
+
+  describe "GET /api/v1/sites/:id/status" do
+    let(:status_site) { create(:site, :with_measurements) }
+
+    before do
+      # Create some measurements with different statuses
+      create(:measurement, site: status_site, host: "router", is_up: true, latency_ms: 5.0)
+      create(:measurement, site: status_site, host: "switch", is_up: true, latency_ms: 3.0)
+      create(:measurement, site: status_site, host: "server", is_up: false)
+
+      # Create an active anomaly
+      create(:anomaly, site: status_site, host: "server")
+    end
+
+    it "returns site status in JSON:API format" do
+      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      json = json_response
+      expect(json["data"]["type"]).to eq("site_status")
+      expect(json["data"]["attributes"]["name"]).to eq(status_site.name)
+    end
+
+    it "includes device counts" do
+      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+
+      json = json_response
+      attrs = json["data"]["attributes"]
+      expect(attrs["devices_total"]).to be >= 3
+      expect(attrs["devices_up"]).to be >= 2
+      expect(attrs["devices_down"]).to be >= 1
+    end
+
+    it "includes overall status based on device health" do
+      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+
+      json = json_response
+      expect(json["data"]["attributes"]["status"]).to be_in(%w[healthy degraded critical])
+    end
+
+    it "includes active anomaly count" do
+      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+
+      json = json_response
+      expect(json["data"]["attributes"]["active_anomalies"]).to eq(1)
+    end
+
+    it "includes devices list with metrics" do
+      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+
+      json = json_response
+      devices = json["data"]["attributes"]["devices"]
+      expect(devices).to be_an(Array)
+      expect(devices.first).to include("host", "ip", "is_up")
+    end
+
+    it "returns 404 for non-existent site" do
+      get "/api/v1/sites/99999/status", headers: headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end
