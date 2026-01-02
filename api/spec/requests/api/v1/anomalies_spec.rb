@@ -48,6 +48,110 @@ RSpec.describe "Api::V1::Anomalies", type: :request do
       json = json_response
       expect(json["data"].length).to eq(3)
     end
+
+    it "filters by status=active" do
+      get "/api/v1/anomalies", params: { status: "active" }, headers: headers
+
+      json = json_response
+      expect(json["data"].length).to eq(2)
+      json["data"].each do |anomaly|
+        expect(anomaly["attributes"]["active"]).to be true
+      end
+    end
+
+    it "filters by status=resolved" do
+      get "/api/v1/anomalies", params: { status: "resolved" }, headers: headers
+
+      json = json_response
+      expect(json["data"].length).to eq(1)
+      expect(json["data"].first["attributes"]["resolved_at"]).not_to be_nil
+    end
+
+    it "returns all anomalies with status=all" do
+      get "/api/v1/anomalies", params: { status: "all" }, headers: headers
+
+      json = json_response
+      expect(json["data"].length).to eq(3)
+    end
+
+    it "filters by since timestamp" do
+      old_anomaly = create(:anomaly, site: site, updated_at: 2.hours.ago)
+
+      get "/api/v1/anomalies", params: { since: 1.hour.ago.iso8601 }, headers: headers
+
+      json = json_response
+      ids = json["data"].map { |a| a["id"].to_i }
+      expect(ids).not_to include(old_anomaly.id)
+    end
+
+    it "returns 400 for invalid since parameter" do
+      get "/api/v1/anomalies", params: { since: "not-a-date" }, headers: headers
+
+      expect(response).to have_http_status(:bad_request)
+      expect(json_response["errors"]).to be_present
+    end
+
+    it "includes meta with counts" do
+      get "/api/v1/anomalies", headers: headers
+
+      json = json_response
+      expect(json["meta"]).to include(
+        "total" => 3,
+        "active" => 2,
+        "resolved" => 1
+      )
+    end
+
+    it "includes created_at in attributes" do
+      get "/api/v1/anomalies", headers: headers
+
+      json = json_response
+      expect(json["data"].first["attributes"]).to have_key("created_at")
+    end
+
+    it "includes duration for resolved anomalies" do
+      get "/api/v1/anomalies", params: { status: "resolved" }, headers: headers
+
+      json = json_response
+      resolved_anomaly = json["data"].first
+      expect(resolved_anomaly["attributes"]).to have_key("duration")
+      expect(resolved_anomaly["attributes"]["duration"]).not_to be_nil
+    end
+  end
+
+  describe "GET /api/v1/anomalies/history" do
+    before do
+      create(:anomaly, site: site, host: "router")
+      create(:anomaly, :resolved, site: site, host: "router")
+      create(:anomaly, site: site, host: "switch")
+    end
+
+    it "returns anomalies for the specified host" do
+      get "/api/v1/anomalies/history", params: { host: "router" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      json = json_response
+      expect(json["data"].length).to eq(2)
+      json["data"].each do |anomaly|
+        expect(anomaly["attributes"]["host"]).to eq("router")
+      end
+    end
+
+    it "requires host parameter" do
+      get "/api/v1/anomalies/history", headers: headers
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "respects days parameter" do
+      old_anomaly = create(:anomaly, site: site, host: "router", created_at: 10.days.ago)
+
+      get "/api/v1/anomalies/history", params: { host: "router", days: 7 }, headers: headers
+
+      json = json_response
+      ids = json["data"].map { |a| a["id"].to_i }
+      expect(ids).not_to include(old_anomaly.id)
+    end
   end
 
   describe "GET /api/v1/anomalies/:id" do
