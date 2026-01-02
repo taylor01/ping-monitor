@@ -22,8 +22,12 @@ module Api
 
         # Since filter for efficient polling
         if params[:since].present?
-          since_time = Time.parse(params[:since])
-          anomalies = anomalies.where("updated_at > ?", since_time)
+          begin
+            since_time = Time.parse(params[:since])
+            anomalies = anomalies.where("updated_at > ?", since_time)
+          rescue ArgumentError
+            return render_jsonapi_error("Invalid since parameter format", status: :bad_request)
+          end
         end
 
         anomalies = anomalies.limit(params[:limit] || 50)
@@ -69,11 +73,14 @@ module Api
       private
 
       def anomaly_meta
-        site_anomalies = current_site.anomalies
+        # Single aggregated query to avoid N+1
+        counts = current_site.anomalies
+                             .group("CASE WHEN resolved_at IS NULL THEN 'active' ELSE 'resolved' END")
+                             .count
         {
-          total: site_anomalies.count,
-          active: site_anomalies.active.count,
-          resolved: site_anomalies.where.not(resolved_at: nil).count
+          total: counts.values.sum,
+          active: counts["active"] || 0,
+          resolved: counts["resolved"] || 0
         }
       end
     end

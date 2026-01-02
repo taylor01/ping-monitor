@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_31_235344) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_02_021836) do
   create_table "analysis_logs", force: :cascade do |t|
     t.text "analysis_text"
     t.integer "anomaly_id", null: false
@@ -42,7 +42,9 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_31_235344) do
     t.index ["resolved_at"], name: "index_anomalies_on_resolved_at"
     t.index ["severity", "created_at"], name: "index_active_anomalies_by_severity", where: "resolved_at IS NULL"
     t.index ["site_id", "created_at"], name: "index_anomalies_on_site_id_and_created_at"
+    t.index ["site_id", "host", "created_at"], name: "index_anomalies_on_site_host_created"
     t.index ["site_id"], name: "index_anomalies_on_site_id"
+    t.index ["updated_at"], name: "index_anomalies_on_updated_at"
   end
 
   create_table "baselines", force: :cascade do |t|

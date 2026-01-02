@@ -84,6 +84,13 @@ RSpec.describe "Api::V1::Anomalies", type: :request do
       expect(ids).not_to include(old_anomaly.id)
     end
 
+    it "returns 400 for invalid since parameter" do
+      get "/api/v1/anomalies", params: { since: "not-a-date" }, headers: headers
+
+      expect(response).to have_http_status(:bad_request)
+      expect(json_response["errors"]).to be_present
+    end
+
     it "includes meta with counts" do
       get "/api/v1/anomalies", headers: headers
 
