@@ -25,7 +25,8 @@ RSpec.describe "Api::V1::Auth", type: :request do
 
         json = json_response
         access_payload = JwtService.decode_access_token(json["data"]["access_token"])
-        expect(access_payload[:site_id]).to eq(site.id)
+        expect(access_payload[:authenticatable_type]).to eq("Site")
+        expect(access_payload[:authenticatable_id]).to eq(site.id)
       end
     end
 
@@ -49,7 +50,7 @@ RSpec.describe "Api::V1::Auth", type: :request do
   describe "POST /api/v1/auth/refresh" do
     context "with valid refresh token" do
       it "returns new token pair" do
-        tokens = JwtService.generate_token_pair(site: site)
+        tokens = JwtService.generate_token_pair(authenticatable: site)
 
         post "/api/v1/auth/refresh", params: { refresh_token: tokens[:refresh_token] }
 
@@ -62,7 +63,8 @@ RSpec.describe "Api::V1::Auth", type: :request do
     context "with invalid refresh token" do
       it "returns unauthorized for expired token" do
         payload = {
-          site_id: site.id,
+          authenticatable_type: "Site",
+          authenticatable_id: site.id,
           type: "refresh",
           exp: 1.day.ago.to_i,
           iat: 2.days.ago.to_i

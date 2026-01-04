@@ -4,6 +4,11 @@ module Api
       # POST /api/v1/measurements
       # Receive measurement batch from a ping monitor
       def create
+        # Only Sites can create measurements
+        unless current_site
+          return render_forbidden("Only sites can submit measurements")
+        end
+
         batch_data = measurement_params
 
         measurements = build_measurements(batch_data)
@@ -32,11 +37,11 @@ module Api
       end
 
       # GET /api/v1/measurements
-      # List measurements for the current site
+      # List measurements (scoped by policy)
       def index
-        measurements = current_site.measurements
-                                   .order(timestamp: :desc)
-                                   .limit(params[:limit] || 100)
+        measurements = policy_scope(Measurement)
+                         .order(timestamp: :desc)
+                         .limit(params[:limit] || 100)
 
         measurements = measurements.for_host(params[:host]) if params[:host].present?
         measurements = measurements.recent(params[:since].to_i.minutes.ago) if params[:since].present?

@@ -2,21 +2,33 @@ require "rails_helper"
 
 RSpec.describe "Api::V1::Sites", type: :request do
   let(:site) { create(:site) }
+  let(:user) { create(:user, role: :admin) }
   let(:headers) { auth_headers(site) }
+  let(:user_headers) { auth_headers(user) }
 
   describe "GET /api/v1/sites" do
     before { create_list(:site, 3) }
 
-    it "returns all sites in JSON:API format" do
+    it "returns all sites in JSON:API format for users" do
+      get "/api/v1/sites", headers: user_headers
+
+      expect(response).to have_http_status(:ok)
+      json = json_response
+      expect(json["data"]).to be_an(Array)
+      expect(json["data"].length).to eq(3) # Users can see all sites
+      expect(json["data"].first["type"]).to eq("sites")
+      expect(json["data"].first).to have_key("id")
+      expect(json["data"].first).to have_key("attributes")
+    end
+
+    it "returns only own site for site authentication" do
       get "/api/v1/sites", headers: headers
 
       expect(response).to have_http_status(:ok)
       json = json_response
       expect(json["data"]).to be_an(Array)
-      expect(json["data"].length).to eq(4) # 3 + our authenticated site
-      expect(json["data"].first["type"]).to eq("sites")
-      expect(json["data"].first).to have_key("id")
-      expect(json["data"].first).to have_key("attributes")
+      expect(json["data"].length).to eq(1)
+      expect(json["data"].first["id"]).to eq(site.id.to_s)
     end
 
     it "returns 401 without authorization" do
@@ -29,8 +41,8 @@ RSpec.describe "Api::V1::Sites", type: :request do
   describe "GET /api/v1/sites/:id" do
     let(:other_site) { create(:site, :with_measurements) }
 
-    it "returns site in JSON:API format" do
-      get "/api/v1/sites/#{other_site.id}", headers: headers
+    it "returns site in JSON:API format for users" do
+      get "/api/v1/sites/#{other_site.id}", headers: user_headers
 
       expect(response).to have_http_status(:ok)
       json = json_response
@@ -38,8 +50,22 @@ RSpec.describe "Api::V1::Sites", type: :request do
       expect(json["data"]["attributes"]["name"]).to eq(other_site.name)
     end
 
+    it "returns own site for site authentication" do
+      get "/api/v1/sites/#{site.id}", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      json = json_response
+      expect(json["data"]["id"]).to eq(site.id.to_s)
+    end
+
+    it "returns 404 when site tries to access another site" do
+      get "/api/v1/sites/#{other_site.id}", headers: headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+
     it "returns 404 for non-existent site" do
-      get "/api/v1/sites/99999", headers: headers
+      get "/api/v1/sites/99999", headers: user_headers
 
       expect(response).to have_http_status(:not_found)
       expect(json_response["errors"]).to be_present
@@ -86,7 +112,7 @@ RSpec.describe "Api::V1::Sites", type: :request do
     end
 
     it "returns site status in JSON:API format" do
-      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+      get "/api/v1/sites/#{status_site.id}/status", headers: user_headers
 
       expect(response).to have_http_status(:ok)
       json = json_response
@@ -95,7 +121,7 @@ RSpec.describe "Api::V1::Sites", type: :request do
     end
 
     it "includes device counts" do
-      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+      get "/api/v1/sites/#{status_site.id}/status", headers: user_headers
 
       json = json_response
       attrs = json["data"]["attributes"]
@@ -105,21 +131,21 @@ RSpec.describe "Api::V1::Sites", type: :request do
     end
 
     it "includes overall status based on device health" do
-      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+      get "/api/v1/sites/#{status_site.id}/status", headers: user_headers
 
       json = json_response
       expect(json["data"]["attributes"]["status"]).to be_in(%w[healthy degraded critical])
     end
 
     it "includes active anomaly count" do
-      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+      get "/api/v1/sites/#{status_site.id}/status", headers: user_headers
 
       json = json_response
       expect(json["data"]["attributes"]["active_anomalies"]).to eq(1)
     end
 
     it "includes devices list with metrics" do
-      get "/api/v1/sites/#{status_site.id}/status", headers: headers
+      get "/api/v1/sites/#{status_site.id}/status", headers: user_headers
 
       json = json_response
       devices = json["data"]["attributes"]["devices"]
@@ -128,7 +154,13 @@ RSpec.describe "Api::V1::Sites", type: :request do
     end
 
     it "returns 404 for non-existent site" do
-      get "/api/v1/sites/99999/status", headers: headers
+      get "/api/v1/sites/99999/status", headers: user_headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns 404 when site tries to access another site status" do
+      get "/api/v1/sites/#{status_site.id}/status", headers: headers
 
       expect(response).to have_http_status(:not_found)
     end

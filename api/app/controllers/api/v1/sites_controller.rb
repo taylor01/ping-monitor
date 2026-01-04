@@ -4,15 +4,15 @@ module Api
   module V1
     class SitesController < BaseController
       # GET /api/v1/sites
-      # List all sites (admin view - typically would need admin auth)
+      # List sites accessible to current authenticatable
       def index
-        sites = Site.all.order(:name)
+        sites = policy_scope(Site).order(:name)
         render json: SiteSerializer.new(sites).serializable_hash
       end
 
       # GET /api/v1/sites/:id
       def show
-        site = Site.find(params[:id])
+        site = policy_scope(Site).find(params[:id])
         options = {
           include_measurements: params[:include]&.include?("measurements"),
           include_anomalies: params[:include]&.include?("anomalies")
@@ -23,15 +23,18 @@ module Api
       end
 
       # GET /api/v1/sites/me
-      # Get current site info (authenticated site)
+      # Get current site info (authenticated site only)
       def me
+        unless current_site
+          return render_forbidden("This endpoint is only available for site authentication")
+        end
         render json: SiteSerializer.new(current_site).serializable_hash
       end
 
       # GET /api/v1/sites/:id/status
       # Get site status summary for NC
       def status
-        site = Site.find(params[:id])
+        site = policy_scope(Site).find(params[:id])
         status_data = build_site_status(site)
         render json: SiteStatusSerializer.new(status_data).serializable_hash
       rescue ActiveRecord::RecordNotFound

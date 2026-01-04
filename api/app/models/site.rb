@@ -1,11 +1,10 @@
 class Site < ApplicationRecord
+  include TokenAuthenticatable
+
   # Associations
   has_many :measurements, dependent: :destroy
   has_many :baselines, dependent: :destroy
   has_many :anomalies, dependent: :destroy
-
-  # Authentication - uses bcrypt for secret hashing
-  has_secure_password :secret, validations: false
 
   # Validations
   validates :name, presence: true, uniqueness: true
@@ -27,6 +26,10 @@ class Site < ApplicationRecord
   # Methods
   def healthy?
     last_heartbeat.present? && last_heartbeat > 5.minutes.ago
+  end
+
+  def available_scopes
+    %w[sites:read sites:write measurements:write anomalies:read]
   end
 
   def update_heartbeat!
