@@ -8,7 +8,7 @@ import requests
 import threading
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 
 from nc.state import Alert
@@ -97,7 +97,7 @@ class RailsAPIClient:
 
                 # Calculate expiration time
                 expires_in = data.get("expires_in", 3600)
-                self._token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+                self._token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
             logger.info(f"Authenticated as agent '{self.agent_name}' with scopes: {self._scopes}")
             return True
@@ -143,7 +143,7 @@ class RailsAPIClient:
                 self._scopes = data.get("scopes", [])
 
                 expires_in = data.get("expires_in", 3600)
-                self._token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+                self._token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
             logger.debug("Access token refreshed successfully")
             return True
@@ -163,7 +163,7 @@ class RailsAPIClient:
             has_token = self._access_token is not None
             is_expired = (
                 self._token_expires_at is None or
-                datetime.utcnow() >= self._token_expires_at - timedelta(seconds=self.TOKEN_REFRESH_BUFFER_SECONDS)
+                datetime.now(timezone.utc) >= self._token_expires_at - timedelta(seconds=self.TOKEN_REFRESH_BUFFER_SECONDS)
             )
 
         if not has_token:
@@ -186,7 +186,7 @@ class RailsAPIClient:
                 return False
             if not self._token_expires_at:
                 return False
-            return datetime.utcnow() < self._token_expires_at
+            return datetime.now(timezone.utc) < self._token_expires_at
 
     # =========================================================================
     # HTTP Methods
@@ -329,7 +329,7 @@ class RailsAPIClient:
         if since:
             params['since'] = since.isoformat()
         if since_minutes:
-            since_dt = datetime.utcnow() - timedelta(minutes=since_minutes)
+            since_dt = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
             params['since'] = since_dt.isoformat()
 
         # Call the Rails anomalies endpoint (JSON:API format)
@@ -471,7 +471,7 @@ class RailsAPIClient:
         """
         params = {}
         if since_minutes:
-            since_dt = datetime.utcnow() - timedelta(minutes=since_minutes)
+            since_dt = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
             params['since'] = since_dt.isoformat()
 
         response = self._get("/api/v1/anomalies", params)
