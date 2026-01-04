@@ -60,8 +60,8 @@ module Api
         render_error("Account not found", status: :unauthorized)
       rescue JwtService::TokenExpiredError
         render_error("Refresh token has expired", status: :unauthorized)
-      rescue JwtService::InvalidTokenError => e
-        render_error(e.message, status: :unauthorized)
+      rescue JwtService::InvalidTokenError
+        render_error("Invalid token", status: :unauthorized)
       end
 
       private
