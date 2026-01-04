@@ -2,7 +2,7 @@
 
 # Rails API connection (JWT authentication)
 rails_api:
-  url: "http://ping-monitor-api:3000"  # Or your actual API URL
+  url: "${RAILS_API_URL}"              # e.g., https://api.ping-monitor-home.taylorcrib.com
   agent_name: "${NC_AGENT_NAME}"       # Agent name registered in Rails
   agent_secret: "${NC_AGENT_SECRET}"   # Agent secret for authentication
   timeout_seconds: 30
