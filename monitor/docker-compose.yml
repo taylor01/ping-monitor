@@ -1,7 +1,7 @@
 services:
   ping-monitor:
     build: .
-    image: ping-monitor:latest
+    image: taylor01/ping-monitor:latest
     container_name: ping-monitor
     restart: unless-stopped
     environment:
