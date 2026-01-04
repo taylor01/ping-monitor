@@ -3,6 +3,7 @@ version: '3.8'
 services:
   nc:
     build: .
+    image: taylor01/noc-claude:latest
     container_name: noc-claude
     restart: unless-stopped
     
@@ -36,7 +37,7 @@ services:
 
   # CLI interface (run manually)
   nc-cli:
-    build: .
+    image: taylor01/noc-claude:latest
     container_name: noc-claude-cli
     profiles:
       - cli  # Only starts with: docker-compose --profile cli up nc-cli
