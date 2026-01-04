@@ -8,6 +8,7 @@ services:
     
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - RAILS_API_URL=${RAILS_API_URL}
       - NC_AGENT_NAME=${NC_AGENT_NAME}
       - NC_AGENT_SECRET=${NC_AGENT_SECRET}
       - TZ=America/New_York
@@ -42,6 +43,7 @@ services:
     
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - RAILS_API_URL=${RAILS_API_URL}
       - NC_AGENT_NAME=${NC_AGENT_NAME}
       - NC_AGENT_SECRET=${NC_AGENT_SECRET}
 
