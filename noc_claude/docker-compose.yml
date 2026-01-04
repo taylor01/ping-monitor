@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  nc:
+    build: .
+    container_name: noc-claude
+    restart: unless-stopped
+    
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NC_AGENT_NAME=${NC_AGENT_NAME}
+      - NC_AGENT_SECRET=${NC_AGENT_SECRET}
+      - TZ=America/New_York
+    
+    volumes:
+      # Persist NC's brain (SQLite database)
+      - nc-data:/app/data
+      
+      # Optional: mount config for easy editing
+      # - ./config.yml:/app/config.yml:ro
+    
+    # NC needs to be able to ping devices
+    cap_add:
+      - NET_RAW
+    
+    # Optional: if NC needs to reach Tailscale network
+    # network_mode: host
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import nc; print('ok')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # CLI interface (run manually)
+  nc-cli:
+    build: .
+    container_name: noc-claude-cli
+    profiles:
+      - cli  # Only starts with: docker-compose --profile cli up nc-cli
+    
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NC_AGENT_NAME=${NC_AGENT_NAME}
+      - NC_AGENT_SECRET=${NC_AGENT_SECRET}
+
+    volumes:
+      - nc-data:/app/data
+
+    stdin_open: true
+    tty: true
+    
+    command: ["python", "-m", "nc.main", "--cli"]
+
+volumes:
+  nc-data:
+    driver: local
