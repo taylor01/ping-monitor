@@ -97,9 +97,9 @@ module Api
           event: event,
           authenticatable_type: authenticatable&.class&.name,
           authenticatable_id: authenticatable&.id,
-          identifier: identifier,
+          identifier: identifier&.to_s&.truncate(100)&.gsub(/[\r\n]/, ""),
           ip: request.remote_ip,
-          user_agent: request.user_agent&.truncate(200)
+          user_agent: request.user_agent&.truncate(200)&.gsub(/[\r\n]/, "")
         }.compact.to_json)
       end
     end

@@ -2,7 +2,6 @@ class JwtService
   ALGORITHM = "HS256"
   ACCESS_TOKEN_EXPIRY = 1.hour
   REFRESH_TOKEN_EXPIRY = 30.days
-  AUTHENTICATABLE_TYPES = %w[Site User Agent ApiClient].freeze
 
   class << self
     def encode_access_token(authenticatable:, scopes: [])
@@ -96,11 +95,16 @@ class JwtService
 
       raise InvalidTokenError, "Missing authenticatable type" if type.blank?
 
-      unless AUTHENTICATABLE_TYPES.include?(type)
-        raise InvalidTokenError, "Invalid authenticatable type: #{type}"
+      # Use explicit case statement instead of constantize to prevent RCE
+      klass = case type
+      when "Site" then Site
+      when "User" then User
+      when "Agent" then Agent
+      when "ApiClient" then ApiClient
+      else raise InvalidTokenError, "Invalid authenticatable type: #{type}"
       end
 
-      type.constantize.find(id)
+      klass.find(id)
     end
 
     private
