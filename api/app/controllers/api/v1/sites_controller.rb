@@ -23,8 +23,11 @@ module Api
       end
 
       # GET /api/v1/sites/me
-      # Get current site info (authenticated site)
+      # Get current site info (authenticated site only)
       def me
+        unless current_site
+          return render_forbidden("This endpoint is only available for site authentication")
+        end
         render json: SiteSerializer.new(current_site).serializable_hash
       end
 

@@ -10,7 +10,18 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_02_021836) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_04_142437) do
+  create_table "agents", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "description"
+    t.datetime "last_activity_at"
+    t.string "name", null: false
+    t.string "secret_digest"
+    t.string "status", default: "active"
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_agents_on_name", unique: true
+  end
+
   create_table "analysis_logs", force: :cascade do |t|
     t.text "analysis_text"
     t.integer "anomaly_id", null: false
@@ -45,6 +56,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_02_021836) do
     t.index ["site_id", "host", "created_at"], name: "index_anomalies_on_site_host_created"
     t.index ["site_id"], name: "index_anomalies_on_site_id"
     t.index ["updated_at"], name: "index_anomalies_on_updated_at"
+  end
+
+  create_table "api_clients", force: :cascade do |t|
+    t.json "allowed_scopes", default: []
+    t.string "client_id", null: false
+    t.datetime "created_at", null: false
+    t.string "description"
+    t.string "name", null: false
+    t.string "secret_digest"
+    t.string "status", default: "active"
+    t.datetime "updated_at", null: false
+    t.index ["client_id"], name: "index_api_clients_on_client_id", unique: true
   end
 
   create_table "baselines", force: :cascade do |t|
@@ -90,6 +113,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_02_021836) do
     t.json "topology_data"
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_sites_on_name", unique: true
+  end
+
+  create_table "users", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "email", null: false
+    t.string "name"
+    t.string "password_digest"
+    t.string "role", default: "viewer"
+    t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_users_on_email", unique: true
   end
 
   add_foreign_key "analysis_logs", "anomalies"

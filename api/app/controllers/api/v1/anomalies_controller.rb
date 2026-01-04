@@ -2,9 +2,9 @@ module Api
   module V1
     class AnomaliesController < BaseController
       # GET /api/v1/anomalies
-      # List anomalies for current site
+      # List anomalies (scoped by policy)
       def index
-        anomalies = current_site.anomalies.order(created_at: :desc)
+        anomalies = policy_scope(Anomaly).order(created_at: :desc)
 
         # Legacy filter (kept for backwards compatibility)
         anomalies = anomalies.active if params[:active] == "true"
@@ -45,17 +45,17 @@ module Api
         days = (params[:days] || 7).to_i
         since_date = days.days.ago
 
-        anomalies = current_site.anomalies
-                                .where(host: params[:host])
-                                .where("created_at > ?", since_date)
-                                .order(created_at: :desc)
+        anomalies = policy_scope(Anomaly)
+                      .where(host: params[:host])
+                      .where("created_at > ?", since_date)
+                      .order(created_at: :desc)
 
         render json: AnomalySerializer.new(anomalies).serializable_hash
       end
 
       # GET /api/v1/anomalies/:id
       def show
-        anomaly = current_site.anomalies.find(params[:id])
+        anomaly = policy_scope(Anomaly).find(params[:id])
         render json: AnomalySerializer.new(anomaly).serializable_hash
       rescue ActiveRecord::RecordNotFound
         render_jsonapi_error("Anomaly not found", status: :not_found)
@@ -63,7 +63,9 @@ module Api
 
       # PATCH /api/v1/anomalies/:id/resolve
       def resolve
-        anomaly = current_site.anomalies.find(params[:id])
+        anomaly = policy_scope(Anomaly).find(params[:id])
+        return if authorize(anomaly, :resolve?).nil?
+
         anomaly.resolve!
         render json: AnomalySerializer.new(anomaly).serializable_hash
       rescue ActiveRecord::RecordNotFound
@@ -74,9 +76,9 @@ module Api
 
       def anomaly_meta
         # Single aggregated query to avoid N+1
-        counts = current_site.anomalies
-                             .group("CASE WHEN resolved_at IS NULL THEN 'active' ELSE 'resolved' END")
-                             .count
+        counts = policy_scope(Anomaly)
+                   .group("CASE WHEN resolved_at IS NULL THEN 'active' ELSE 'resolved' END")
+                   .count
         {
           total: counts.values.sum,
           active: counts["active"] || 0,

@@ -4,16 +4,29 @@ module Api
       skip_before_action :verify_authenticity_token, raise: false
 
       # POST /api/v1/auth/token
-      # Authenticate with site credentials and get tokens
+      # Authenticate with credentials and get tokens
+      # Supports: sites, users, agents, api_clients
       def create
-        site = Site.find_by(name: params[:site_id])
+        authenticatable = find_and_authenticate
 
-        if site&.authenticate_secret(params[:secret])
-          tokens = JwtService.generate_token_pair(site: site)
-          render json: { data: tokens }, status: :ok
-        else
-          render_error("Invalid credentials", status: :unauthorized)
+        unless authenticatable
+          log_auth_event("authentication_failure", identifier: params[:identifier] || params[:site_id])
+          return render_error("Invalid credentials", status: :unauthorized)
         end
+
+        unless authenticatable.can_authenticate?
+          log_auth_event("authentication_inactive", authenticatable: authenticatable)
+          return render_error("Account is not active", status: :forbidden)
+        end
+
+        scopes = requested_scopes(authenticatable)
+        tokens = JwtService.generate_token_pair(
+          authenticatable: authenticatable,
+          scopes: scopes
+        )
+
+        log_auth_event("authentication_success", authenticatable: authenticatable)
+        render json: { data: tokens }, status: :ok
       end
 
       # POST /api/v1/auth/refresh
@@ -26,12 +39,25 @@ module Api
         end
 
         payload = JwtService.decode_refresh_token(refresh_token)
-        site = Site.find(payload[:site_id])
+        authenticatable = JwtService.find_authenticatable(payload)
 
-        tokens = JwtService.generate_token_pair(site: site)
+        unless authenticatable.can_authenticate?
+          return render_error("Account is not active", status: :forbidden)
+        end
+
+        # Revalidate scopes against current permissions
+        # This ensures role/permission changes are reflected on refresh
+        old_scopes = payload[:scopes] || []
+        new_scopes = authenticatable.validate_scopes(old_scopes)
+
+        tokens = JwtService.generate_token_pair(
+          authenticatable: authenticatable,
+          scopes: new_scopes.presence
+        )
+
         render json: { data: tokens }, status: :ok
       rescue ActiveRecord::RecordNotFound
-        render_error("Site not found", status: :unauthorized)
+        render_error("Account not found", status: :unauthorized)
       rescue JwtService::TokenExpiredError
         render_error("Refresh token has expired", status: :unauthorized)
       rescue JwtService::InvalidTokenError => e
@@ -39,6 +65,22 @@ module Api
       end
 
       private
+
+      def find_and_authenticate
+        type = (params[:authenticatable_type] || "site").downcase
+        identifier = params[:identifier] || params[:site_id]
+        secret = params[:secret]
+
+        AuthenticationRegistry.authenticate(
+          type: type,
+          identifier: identifier,
+          secret: secret
+        )
+      end
+
+      def requested_scopes(authenticatable)
+        authenticatable.validate_scopes(params[:scopes])
+      end
 
       def render_error(message, status:)
         render json: {
@@ -48,6 +90,17 @@ module Api
             detail: message
           } ]
         }, status: status
+      end
+
+      def log_auth_event(event, authenticatable: nil, identifier: nil)
+        Rails.logger.info({
+          event: event,
+          authenticatable_type: authenticatable&.class&.name,
+          authenticatable_id: authenticatable&.id,
+          identifier: identifier,
+          ip: request.remote_ip,
+          user_agent: request.user_agent&.truncate(200)
+        }.compact.to_json)
       end
     end
   end
