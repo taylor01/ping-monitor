@@ -1,0 +1,49 @@
+# NC (NOC Claude) Configuration
+
+# Rails API connection (JWT authentication)
+rails_api:
+  url: "http://ping-monitor-api:3000"  # Or your actual API URL
+  agent_name: "${NC_AGENT_NAME}"       # Agent name registered in Rails
+  agent_secret: "${NC_AGENT_SECRET}"   # Agent secret for authentication
+  timeout_seconds: 30
+
+# Timezone for all time-based operations
+timezone: "America/New_York"
+
+# Schedule settings
+schedule:
+  poll_interval_seconds: 30      # How often to check for new alerts
+  morning_summary_hour: 7        # Hour to generate morning summary (7 AM)
+  quiet_hours_start: 22          # Start of quiet hours (10 PM)
+  quiet_hours_end: 7             # End of quiet hours (7 AM)
+
+# Detection thresholds
+thresholds:
+  watching_timeout_seconds: 120  # How long to watch before investigating (2 min)
+  cascade_window_seconds: 30     # Events within this window = related
+  pattern_confidence_threshold: 0.7  # Min confidence to act on a pattern
+
+# Site configurations
+sites:
+  - name: home
+    tailscale_ip: "100.x.x.x"    # Replace with actual Tailscale IP
+    critical_devices:
+      - router
+      - switch-main
+      
+  - name: cabin
+    tailscale_ip: "100.x.x.x"    # Replace with actual Tailscale IP
+    critical_devices:
+      - router
+      
+  - name: office
+    tailscale_ip: "100.x.x.x"    # Replace with actual Tailscale IP
+    critical_devices:
+      - router
+      - firewall
+
+# Database path (relative to app directory)
+database_path: "data/nc.db"
+
+# Claude model to use
+claude_model: "claude-sonnet-4-20250514"
