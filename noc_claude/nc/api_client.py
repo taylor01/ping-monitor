@@ -294,9 +294,34 @@ class RailsAPIClient:
         }
         return mapping.get(anomaly_type, anomaly_type)
 
-    def _parse_jsonapi_anomaly(self, item: Dict, site_name: str = '') -> Dict:
+    def _build_included_lookup(self, included: List[Dict]) -> Dict[str, Dict]:
+        """
+        Build a lookup dict from JSON:API included resources.
+
+        Returns:
+            Dict mapping "type:id" -> resource attributes
+        """
+        lookup = {}
+        for resource in included:
+            res_type = resource.get('type', '')
+            res_id = str(resource.get('id', ''))
+            key = f"{res_type}:{res_id}"
+            lookup[key] = resource.get('attributes', {})
+        return lookup
+
+    def _parse_jsonapi_anomaly(self, item: Dict, included_lookup: Dict[str, Dict]) -> Dict:
         """Parse a JSON:API anomaly item into NC alert format."""
         attrs = item.get('attributes', {})
+
+        # Get site name from included resources via relationship
+        site_name = ''
+        relationships = item.get('relationships', {})
+        site_rel = relationships.get('site', {}).get('data', {})
+        if site_rel:
+            site_key = f"{site_rel.get('type', 'sites')}:{site_rel.get('id', '')}"
+            site_attrs = included_lookup.get(site_key, {})
+            site_name = site_attrs.get('name', '')
+
         return {
             'id': item.get('id'),
             'site': site_name,
@@ -322,7 +347,9 @@ class RailsAPIClient:
         Returns:
             List of Alert objects
         """
-        params = {}
+        params = {
+            'include': 'site'  # JSON:API include for site data
+        }
 
         if status:
             params['status'] = status
@@ -335,10 +362,13 @@ class RailsAPIClient:
         # Call the Rails anomalies endpoint (JSON:API format)
         response = self._get("/api/v1/anomalies", params)
 
+        # Build lookup from included resources
+        included_lookup = self._build_included_lookup(response.get('included', []))
+
         # Parse JSON:API format
         alerts = []
         for item in response.get('data', []):
-            alert_data = self._parse_jsonapi_anomaly(item, site or '')
+            alert_data = self._parse_jsonapi_anomaly(item, included_lookup)
             alerts.append(Alert.from_api(alert_data))
 
         return alerts

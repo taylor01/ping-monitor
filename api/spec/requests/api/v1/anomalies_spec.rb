@@ -117,6 +117,43 @@ RSpec.describe "Api::V1::Anomalies", type: :request do
       expect(resolved_anomaly["attributes"]).to have_key("duration")
       expect(resolved_anomaly["attributes"]["duration"]).not_to be_nil
     end
+
+    context "with include parameter" do
+      it "includes site in response when requested" do
+        get "/api/v1/anomalies", params: { include: "site" }, headers: headers
+
+        json = json_response
+        expect(json["included"]).to be_an(Array)
+        expect(json["included"].first["type"]).to eq("sites")
+        expect(json["included"].first["attributes"]["name"]).to eq(site.name)
+      end
+
+      it "includes relationship data linking to included site" do
+        get "/api/v1/anomalies", params: { include: "site" }, headers: headers
+
+        json = json_response
+        anomaly_data = json["data"].first
+        expect(anomaly_data["relationships"]["site"]["data"]["type"]).to eq("sites")
+        expect(anomaly_data["relationships"]["site"]["data"]["id"]).to eq(site.id.to_s)
+      end
+
+      it "ignores invalid include values" do
+        get "/api/v1/anomalies", params: { include: "invalid,site" }, headers: headers
+
+        json = json_response
+        expect(json["included"]).to be_an(Array)
+        # Only site is included, invalid is ignored
+        included_types = json["included"].map { |i| i["type"] }
+        expect(included_types).to contain_exactly("sites")
+      end
+
+      it "returns no included when include param is empty" do
+        get "/api/v1/anomalies", headers: headers
+
+        json = json_response
+        expect(json["included"]).to be_nil
+      end
+    end
   end
 
   describe "GET /api/v1/anomalies/history" do
@@ -180,6 +217,15 @@ RSpec.describe "Api::V1::Anomalies", type: :request do
       get "/api/v1/anomalies/#{other_anomaly.id}", headers: headers
 
       expect(response).to have_http_status(:not_found)
+    end
+
+    it "includes site when requested" do
+      get "/api/v1/anomalies/#{anomaly.id}", params: { include: "site" }, headers: headers
+
+      json = json_response
+      expect(json["included"]).to be_an(Array)
+      expect(json["included"].first["type"]).to eq("sites")
+      expect(json["included"].first["id"]).to eq(site.id.to_s)
     end
   end
 

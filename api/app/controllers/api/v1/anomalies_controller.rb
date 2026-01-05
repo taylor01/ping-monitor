@@ -32,7 +32,11 @@ module Api
 
         anomalies = anomalies.limit(params[:limit] || 50)
 
-        render json: AnomalySerializer.new(anomalies, meta: anomaly_meta).serializable_hash
+        render json: AnomalySerializer.new(
+          anomalies,
+          include: parse_includes,
+          meta: anomaly_meta
+        ).serializable_hash
       end
 
       # GET /api/v1/anomalies/history
@@ -56,7 +60,7 @@ module Api
       # GET /api/v1/anomalies/:id
       def show
         anomaly = policy_scope(Anomaly).find(params[:id])
-        render json: AnomalySerializer.new(anomaly).serializable_hash
+        render json: AnomalySerializer.new(anomaly, include: parse_includes).serializable_hash
       rescue ActiveRecord::RecordNotFound
         render_jsonapi_error("Anomaly not found", status: :not_found)
       end
@@ -73,6 +77,17 @@ module Api
       end
 
       private
+
+      # Parse JSON:API include parameter
+      # Example: ?include=site,measurement -> [:site, :measurement]
+      ALLOWED_INCLUDES = %w[site measurement].freeze
+
+      def parse_includes
+        return [] unless params[:include].present?
+
+        requested = params[:include].split(",").map(&:strip)
+        requested.select { |inc| ALLOWED_INCLUDES.include?(inc) }.map(&:to_sym)
+      end
 
       def anomaly_meta
         # Single aggregated query to avoid N+1

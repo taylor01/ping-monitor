@@ -137,6 +137,165 @@ class TestTokenRefresh:
                 api_client.refresh_access_token()
 
 
+class TestJSONAPIParsing:
+    """Test JSON:API response parsing."""
+
+    def test_build_included_lookup(self, api_client):
+        """Builds lookup from included resources."""
+        included = [
+            {
+                "id": "1",
+                "type": "sites",
+                "attributes": {"name": "home", "status": "active"}
+            },
+            {
+                "id": "2",
+                "type": "sites",
+                "attributes": {"name": "cabin", "status": "active"}
+            }
+        ]
+
+        lookup = api_client._build_included_lookup(included)
+
+        assert lookup["sites:1"]["name"] == "home"
+        assert lookup["sites:2"]["name"] == "cabin"
+
+    def test_parse_jsonapi_anomaly_with_site(self, api_client):
+        """Parses anomaly with site from included lookup."""
+        included_lookup = {
+            "sites:1": {"name": "home", "status": "active"}
+        }
+
+        item = {
+            "id": "123",
+            "type": "anomalies",
+            "attributes": {
+                "host": "router",
+                "anomaly_type": "host_down",
+                "severity": "critical",
+                "message": "Host is down",
+                "created_at": "2024-01-15T10:30:00Z",
+                "resolved_at": None
+            },
+            "relationships": {
+                "site": {
+                    "data": {"id": "1", "type": "sites"}
+                }
+            }
+        }
+
+        result = api_client._parse_jsonapi_anomaly(item, included_lookup)
+
+        assert result["id"] == "123"
+        assert result["site"] == "home"
+        assert result["device"] == "router"
+        assert result["alert_type"] == "down"
+        assert result["severity"] == "critical"
+
+    def test_parse_jsonapi_anomaly_without_site_relationship(self, api_client):
+        """Handles anomaly without site relationship gracefully."""
+        included_lookup = {}
+
+        item = {
+            "id": "123",
+            "type": "anomalies",
+            "attributes": {
+                "host": "router",
+                "anomaly_type": "host_down",
+                "severity": "warning",
+                "message": "Host is down",
+                "created_at": "2024-01-15T10:30:00Z",
+                "resolved_at": None
+            },
+            "relationships": {}
+        }
+
+        result = api_client._parse_jsonapi_anomaly(item, included_lookup)
+
+        assert result["site"] == ""
+        assert result["device"] == "router"
+
+    def test_parse_jsonapi_anomaly_site_not_in_included(self, api_client):
+        """Handles missing site in included lookup."""
+        included_lookup = {}  # Empty lookup
+
+        item = {
+            "id": "123",
+            "type": "anomalies",
+            "attributes": {
+                "host": "router",
+                "anomaly_type": "host_down",
+                "severity": "warning",
+                "message": "Host is down",
+                "created_at": "2024-01-15T10:30:00Z",
+                "resolved_at": None
+            },
+            "relationships": {
+                "site": {
+                    "data": {"id": "999", "type": "sites"}
+                }
+            }
+        }
+
+        result = api_client._parse_jsonapi_anomaly(item, included_lookup)
+
+        assert result["site"] == ""
+
+    def test_get_alerts_requests_include_site(self, api_client):
+        """get_alerts requests site include."""
+        mock_auth_response = Mock()
+        mock_auth_response.status_code = 200
+        mock_auth_response.json.return_value = {
+            "data": {
+                "access_token": "test-token",
+                "refresh_token": "test-refresh",
+                "expires_in": 3600,
+                "scopes": []
+            }
+        }
+
+        mock_alerts_response = Mock()
+        mock_alerts_response.status_code = 200
+        mock_alerts_response.json.return_value = {
+            "data": [
+                {
+                    "id": "1",
+                    "type": "anomalies",
+                    "attributes": {
+                        "host": "router",
+                        "anomaly_type": "host_down",
+                        "severity": "critical",
+                        "message": "Down",
+                        "created_at": "2024-01-15T10:30:00Z",
+                        "resolved_at": None
+                    },
+                    "relationships": {
+                        "site": {"data": {"id": "1", "type": "sites"}}
+                    }
+                }
+            ],
+            "included": [
+                {
+                    "id": "1",
+                    "type": "sites",
+                    "attributes": {"name": "home"}
+                }
+            ]
+        }
+
+        with patch("requests.post", return_value=mock_auth_response):
+            with patch("requests.get", return_value=mock_alerts_response) as mock_get:
+                alerts = api_client.get_alerts()
+
+                # Verify include=site was passed
+                call_args = mock_get.call_args
+                assert call_args[1]["params"]["include"] == "site"
+
+                # Verify site name was parsed correctly
+                assert len(alerts) == 1
+                assert alerts[0].site == "home"
+
+
 class TestMockClient:
     """Test mock API client for development."""
 
