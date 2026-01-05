@@ -16,6 +16,7 @@ servers:
       traefik.http.routers.ping-monitor-api.entrypoints: websecure
       traefik.http.routers.ping-monitor-api.tls.certresolver: letsencrypt
       traefik.http.services.ping-monitor-api.loadbalancer.server.port: 3000
+      com.datadoghq.ad.logs: '[{"source": "ruby", "service": "ping-monitor-api"}]'
     options:
       network: core_default
       network-alias: ping-monitor-api
@@ -24,6 +25,8 @@ servers:
       - 100.123.212.53
     cmd: bin/jobs
     proxy: false
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "ruby", "service": "ping-monitor-api-job"}]'
     options:
       network: core_default
 
