@@ -85,20 +85,24 @@ DEVICES: switch-main.home, ap-garage.home, ap-living.home
 NC_TOOLS = [
     {
         "name": "ping_device",
-        "description": "ICMP ping a device to check if it's reachable from NC's location. Use this to verify if a device is actually down or if it's a monitoring issue.",
+        "description": "ICMP ping a device to check if it's reachable from NC's location. Use this to verify if a device is actually down or if it's a monitoring issue. Always prefer using host_ip over host to avoid DNS resolution issues.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "host": {
                     "type": "string",
-                    "description": "IP address or hostname to ping"
+                    "description": "Device hostname/name (for display purposes)"
+                },
+                "host_ip": {
+                    "type": "string",
+                    "description": "IP address to ping (preferred over hostname)"
                 },
                 "site": {
                     "type": "string",
                     "description": "Site name (for Tailscale routing if needed)"
                 }
             },
-            "required": ["host"]
+            "required": []
         }
     },
     {

@@ -55,37 +55,40 @@ class ToolExecutor:
     def _ping_device(self, params: Dict[str, Any]) -> str:
         """Ping a device and return results."""
         host = params.get("host")
+        host_ip = params.get("host_ip")
         site = params.get("site")
-        
-        if not host:
-            return "Error: host parameter required"
-            
-        # If site is specified and we have a Tailscale IP, we might need to route through it
-        # For now, direct ping
+
+        if not host and not host_ip:
+            return "Error: host or host_ip parameter required"
+
+        # Prefer IP address over hostname to avoid DNS resolution issues
+        ping_target = host_ip if host_ip else host
+        display_name = f"{host} ({host_ip})" if host_ip and host else (host or host_ip)
+
         try:
             result = subprocess.run(
-                ["ping", "-c", "3", "-W", "2", host],
+                ["ping", "-c", "3", "-W", "2", ping_target],
                 capture_output=True,
                 text=True,
                 timeout=10
             )
-            
+
             if result.returncode == 0:
                 # Parse latency from output
                 lines = result.stdout.strip().split('\n')
                 stats_line = [l for l in lines if 'avg' in l.lower() or 'rtt' in l.lower()]
                 if stats_line:
-                    return f"REACHABLE: {host} is responding. {stats_line[-1]}"
-                return f"REACHABLE: {host} is responding."
+                    return f"REACHABLE: {display_name} is responding. {stats_line[-1]}"
+                return f"REACHABLE: {display_name} is responding."
             else:
-                return f"UNREACHABLE: {host} is not responding to ping."
-                
+                return f"UNREACHABLE: {display_name} is not responding to ping."
+
         except subprocess.TimeoutExpired:
-            return f"TIMEOUT: {host} ping timed out after 10 seconds."
+            return f"TIMEOUT: {display_name} ping timed out after 10 seconds."
         except FileNotFoundError:
             return f"ERROR: ping command not available."
         except Exception as e:
-            return f"ERROR: Failed to ping {host}: {str(e)}"
+            return f"ERROR: Failed to ping {display_name}: {str(e)}"
             
     def _check_tailscale_status(self, params: Dict[str, Any]) -> str:
         """Check Tailscale status for a site."""
