@@ -4,7 +4,9 @@ module Api
       # GET /api/v1/anomalies
       # List anomalies (scoped by policy)
       def index
-        anomalies = policy_scope(Anomaly).order(created_at: :desc)
+        anomalies = policy_scope(Anomaly)
+        anomalies = anomalies.includes(:site) if params[:include]&.include?("site")
+        anomalies = anomalies.order(created_at: :desc)
 
         # Legacy filter (kept for backwards compatibility)
         anomalies = anomalies.active if params[:active] == "true"
