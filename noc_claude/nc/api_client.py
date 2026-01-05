@@ -322,10 +322,13 @@ class RailsAPIClient:
             site_attrs = included_lookup.get(site_key, {})
             site_name = site_attrs.get('name', '')
 
+        # For site-level anomalies (site_offline), host may be null
+        device = attrs.get('host') or '[site]'
+
         return {
             'id': item.get('id'),
             'site': site_name,
-            'device': attrs.get('host', ''),
+            'device': device,
             'alert_type': self._map_anomaly_type(attrs.get('anomaly_type', 'unknown')),
             'severity': attrs.get('severity', 'warning'),
             'message': attrs.get('message', ''),
