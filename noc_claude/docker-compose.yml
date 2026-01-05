@@ -1,33 +1,32 @@
-version: '3.8'
-
 services:
   nc:
     build: .
     image: taylor01/noc-claude:latest
     container_name: noc-claude
     restart: unless-stopped
-    
+
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - RAILS_API_URL=${RAILS_API_URL}
       - NC_AGENT_NAME=${NC_AGENT_NAME}
       - NC_AGENT_SECRET=${NC_AGENT_SECRET}
       - TZ=America/New_York
-    
+
     volumes:
       # Persist NC's brain (SQLite database)
       - nc-data:/app/data
-      
+
       # Optional: mount config for easy editing
       # - ./config.yml:/app/config.yml:ro
-    
+
     # NC needs to be able to ping devices
     cap_add:
       - NET_RAW
-    
-    # Optional: if NC needs to reach Tailscale network
-    # network_mode: host
-    
+
+    networks:
+      - default
+      - core_default
+
     # Health check
     healthcheck:
       test: ["CMD", "python", "-c", "import nc; print('ok')"]
@@ -59,3 +58,7 @@ services:
 volumes:
   nc-data:
     driver: local
+
+networks:
+  core_default:
+    external: true
