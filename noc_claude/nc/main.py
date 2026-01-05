@@ -8,7 +8,7 @@ Main entry point and core loop.
 import time
 import signal
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 from nc.config import Config
 from nc.state import StateManager
@@ -140,7 +140,7 @@ class NOCClaude:
                 
             # Check for timeout
             if context.watching_since:
-                elapsed = (datetime.utcnow() - context.watching_since).total_seconds()
+                elapsed = (datetime.now(timezone.utc) - context.watching_since).total_seconds()
                 if elapsed > self.config.watching_timeout_seconds:
                     self.output.site_status(
                         site, "WATCHING",
@@ -205,7 +205,7 @@ class NOCClaude:
             if not context.active_alerts:
                 incident = self.state.get_active_incident(site)
                 if incident:
-                    duration = datetime.utcnow() - incident.started_at
+                    duration = datetime.now(timezone.utc) - incident.started_at
                     self.state.resolve_incident(
                         site=site,
                         auto_recovered=True,

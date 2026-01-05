@@ -6,7 +6,7 @@ Handles site contexts, incidents, learned patterns, and persistence to SQLite.
 
 import json
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 from contextlib import contextmanager
@@ -34,7 +34,7 @@ class Alert:
             alert_type=data.get('alert_type', 'unknown'),
             severity=data.get('severity', 'warning'),
             message=data.get('message', ''),
-            started_at=datetime.fromisoformat(data['started_at'].replace('Z', '+00:00')) if data.get('started_at') else datetime.utcnow(),
+            started_at=datetime.fromisoformat(data['started_at'].replace('Z', '+00:00')) if data.get('started_at') else datetime.now(timezone.utc),
             resolved_at=datetime.fromisoformat(data['resolved_at'].replace('Z', '+00:00')) if data.get('resolved_at') else None
         )
 
@@ -105,7 +105,7 @@ class SiteContext:
             lines.append(f"  - {alert.device}: {alert.alert_type} since {alert.started_at.strftime('%H:%M:%S')}")
             
         if self.watching_since:
-            elapsed = (datetime.utcnow() - self.watching_since).total_seconds()
+            elapsed = (datetime.now(timezone.utc) - self.watching_since).total_seconds()
             lines.append(f"Watching since: {self.watching_since.strftime('%H:%M:%S')} ({int(elapsed)}s ago)")
             
         if self.learned_patterns:
@@ -295,7 +295,7 @@ class StateManager:
                             watching_since = COALESCE(watching_since, ?),
                             updated_at = CURRENT_TIMESTAMP
                         WHERE site = ? AND concern_level = 'NORMAL'
-                    """, (datetime.utcnow().isoformat(), alert.site))
+                    """, (datetime.now(timezone.utc).isoformat(), alert.site))
                     
     def get_active_alerts(self, site: Optional[str] = None) -> List[Alert]:
         """Get active alerts, optionally filtered by site."""
@@ -380,7 +380,7 @@ class StateManager:
                 conn.execute("""
                     INSERT OR REPLACE INTO site_states (site, concern_level, watching_since, updated_at)
                     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                """, (site, level, datetime.utcnow().isoformat()))
+                """, (site, level, datetime.now(timezone.utc).isoformat()))
             elif level == 'NORMAL':
                 conn.execute("""
                     INSERT OR REPLACE INTO site_states (site, concern_level, watching_since, updated_at)
@@ -434,7 +434,7 @@ class StateManager:
                 INSERT INTO incidents (site, started_at, nc_summary, nc_root_cause_guess, 
                                        devices_affected, severity)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (site, datetime.utcnow().isoformat(), summary, nc_root_cause_guess,
+            """, (site, datetime.now(timezone.utc).isoformat(), summary, nc_root_cause_guess,
                   json.dumps(devices_affected), severity))
             incident_id = cursor.lastrowid
             
@@ -477,12 +477,12 @@ class StateManager:
                     human_root_cause = COALESCE(?, human_root_cause),
                     human_reviewed_at = CASE WHEN ? IS NOT NULL THEN CURRENT_TIMESTAMP ELSE human_reviewed_at END
                 WHERE site = ? AND resolved_at IS NULL
-            """, (datetime.utcnow().isoformat(), auto_recovered, nc_summary,
+            """, (datetime.now(timezone.utc).isoformat(), auto_recovered, nc_summary,
                   human_root_cause, human_root_cause, site))
                   
     def get_recent_incidents(self, site: str, days: int = 30) -> List[Incident]:
         """Get recent incidents for a site."""
-        since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         with self._get_conn() as conn:
             rows = conn.execute("""
                 SELECT * FROM incidents 
@@ -500,7 +500,7 @@ class StateManager:
                 "SELECT value FROM nc_metadata WHERE key = 'last_summary_time'"
             ).fetchone()
             
-            since = row['value'] if row else (datetime.utcnow() - timedelta(hours=24)).isoformat()
+            since = row['value'] if row else (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
             
             rows = conn.execute("""
                 SELECT * FROM incidents 
@@ -589,7 +589,7 @@ class StateManager:
                     UPDATE learned_patterns
                     SET occurrences = ?, confidence = ?, last_seen_at = ?, description = ?
                     WHERE id = ?
-                """, (new_occurrences, new_confidence, datetime.utcnow().isoformat(),
+                """, (new_occurrences, new_confidence, datetime.now(timezone.utc).isoformat(),
                       description, existing['id']))
             else:
                 # Create new pattern
@@ -598,7 +598,7 @@ class StateManager:
                     (site, device, pattern_type, description, time_pattern, last_seen_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (site, device, pattern_type, description, time_pattern,
-                      datetime.utcnow().isoformat()))
+                      datetime.now(timezone.utc).isoformat()))
                       
     # =========================================================================
     # Inferred Topology
@@ -633,7 +633,7 @@ class StateManager:
                         observed_count = observed_count + 1,
                         confidence = MIN(0.95, confidence + 0.15),
                         last_seen_at = excluded.last_seen_at
-                """, (site, upstream, device, datetime.utcnow().isoformat()))
+                """, (site, upstream, device, datetime.now(timezone.utc).isoformat()))
                 
     # =========================================================================
     # Investigation Log
@@ -670,7 +670,7 @@ class StateManager:
             conn.execute("""
                 INSERT OR REPLACE INTO nc_metadata (key, value, updated_at)
                 VALUES ('last_poll_time', ?, CURRENT_TIMESTAMP)
-            """, (datetime.utcnow().isoformat(),))
+            """, (datetime.now(timezone.utc).isoformat(),))
             
     def mark_summary_done(self):
         """Mark that morning summary was done."""
@@ -678,4 +678,4 @@ class StateManager:
             conn.execute("""
                 INSERT OR REPLACE INTO nc_metadata (key, value, updated_at)
                 VALUES ('last_summary_time', ?, CURRENT_TIMESTAMP)
-            """, (datetime.utcnow().isoformat(),))
+            """, (datetime.now(timezone.utc).isoformat(),))
