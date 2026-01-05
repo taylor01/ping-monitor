@@ -24,8 +24,7 @@ services:
       - NET_RAW
 
     networks:
-      - default
-      - core_default
+      - kamal
 
     # Health check
     healthcheck:
@@ -50,9 +49,12 @@ services:
     volumes:
       - nc-data:/app/data
 
+    networks:
+      - kamal
+
     stdin_open: true
     tty: true
-    
+
     command: ["python", "-m", "nc.main", "--cli"]
 
 volumes:
@@ -60,5 +62,5 @@ volumes:
     driver: local
 
 networks:
-  core_default:
+  kamal:
     external: true

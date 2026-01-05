@@ -4,6 +4,10 @@ services:
     image: taylor01/ping-monitor:latest
     container_name: ping-monitor
     restart: unless-stopped
+
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "ping-monitor"}]'
+
     environment:
       # Site identification
       - SITE_NAME=${SITE_NAME:-default}
@@ -31,6 +35,13 @@ services:
       - NET_RAW  # Required for ICMP pinging
     user: root   # Required for NET_RAW capability
 
+    networks:
+      - kamal
+
 volumes:
   ping-buffer:
     driver: local
+
+networks:
+  kamal:
+    external: true
