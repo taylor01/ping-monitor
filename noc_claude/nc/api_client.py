@@ -312,15 +312,23 @@ class RailsAPIClient:
     def _parse_jsonapi_anomaly(self, item: Dict, included_lookup: Dict[str, Dict]) -> Dict:
         """Parse a JSON:API anomaly item into NC alert format."""
         attrs = item.get('attributes', {})
+        relationships = item.get('relationships', {})
 
         # Get site name from included resources via relationship
         site_name = ''
-        relationships = item.get('relationships', {})
         site_rel = relationships.get('site', {}).get('data', {})
         if site_rel:
             site_key = f"{site_rel.get('type', 'sites')}:{site_rel.get('id', '')}"
             site_attrs = included_lookup.get(site_key, {})
             site_name = site_attrs.get('name', '')
+
+        # Get host IP from included measurement via relationship
+        host_ip = ''
+        measurement_rel = relationships.get('measurement', {}).get('data', {})
+        if measurement_rel:
+            measurement_key = f"{measurement_rel.get('type', 'measurements')}:{measurement_rel.get('id', '')}"
+            measurement_attrs = included_lookup.get(measurement_key, {})
+            host_ip = measurement_attrs.get('ip', '')
 
         # For site-level anomalies (site_offline), host may be null
         device = attrs.get('host') or '[site]'
@@ -329,6 +337,7 @@ class RailsAPIClient:
             'id': item.get('id'),
             'site': site_name,
             'device': device,
+            'host_ip': host_ip,
             'alert_type': self._map_anomaly_type(attrs.get('anomaly_type', 'unknown')),
             'severity': attrs.get('severity', 'warning'),
             'message': attrs.get('message', ''),
@@ -351,7 +360,7 @@ class RailsAPIClient:
             List of Alert objects
         """
         params = {
-            'include': 'site'  # JSON:API include for site data
+            'include': 'site,measurement'  # JSON:API include for site and measurement data
         }
 
         if status:

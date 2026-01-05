@@ -23,7 +23,8 @@ class Alert:
     message: str
     started_at: datetime
     resolved_at: Optional[datetime] = None
-    
+    host_ip: Optional[str] = None  # IP address for direct pinging
+
     @classmethod
     def from_api(cls, data: dict) -> "Alert":
         """Create Alert from API response."""
@@ -35,7 +36,8 @@ class Alert:
             severity=data.get('severity', 'warning'),
             message=data.get('message', ''),
             started_at=datetime.fromisoformat(data['started_at'].replace('Z', '+00:00')) if data.get('started_at') else datetime.now(timezone.utc),
-            resolved_at=datetime.fromisoformat(data['resolved_at'].replace('Z', '+00:00')) if data.get('resolved_at') else None
+            resolved_at=datetime.fromisoformat(data['resolved_at'].replace('Z', '+00:00')) if data.get('resolved_at') else None,
+            host_ip=data.get('host_ip') or None
         )
 
 
@@ -231,6 +233,7 @@ class StateManager:
                     id TEXT PRIMARY KEY,
                     site TEXT NOT NULL,
                     device TEXT NOT NULL,
+                    host_ip TEXT,
                     alert_type TEXT NOT NULL,
                     severity TEXT,
                     message TEXT,
@@ -277,10 +280,11 @@ class StateManager:
                     # New or ongoing alert
                     conn.execute("""
                         INSERT OR REPLACE INTO active_alerts
-                        (id, site, device, alert_type, severity, message, started_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (alert.id, alert.site, alert.device, alert.alert_type,
-                          alert.severity, alert.message, alert.started_at.isoformat()))
+                        (id, site, device, host_ip, alert_type, severity, message, started_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (alert.id, alert.site, alert.device, alert.host_ip,
+                          alert.alert_type, alert.severity, alert.message,
+                          alert.started_at.isoformat()))
 
                     # Ensure site has a state record
                     conn.execute("""
@@ -317,7 +321,8 @@ class StateManager:
             alert_type=row['alert_type'],
             severity=row['severity'],
             message=row['message'],
-            started_at=datetime.fromisoformat(row['started_at'])
+            started_at=datetime.fromisoformat(row['started_at']),
+            host_ip=row['host_ip']
         ) for row in rows]
         
     def clear_alert(self, alert_id: str):

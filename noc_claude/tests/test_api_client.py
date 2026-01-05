@@ -287,9 +287,9 @@ class TestJSONAPIParsing:
             with patch("requests.get", return_value=mock_alerts_response) as mock_get:
                 alerts = api_client.get_alerts()
 
-                # Verify include=site was passed
+                # Verify include=site,measurement was passed
                 call_args = mock_get.call_args
-                assert call_args[1]["params"]["include"] == "site"
+                assert call_args[1]["params"]["include"] == "site,measurement"
 
                 # Verify site name was parsed correctly
                 assert len(alerts) == 1
