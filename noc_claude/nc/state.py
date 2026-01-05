@@ -249,9 +249,26 @@ class StateManager:
     # Alert Management
     # =========================================================================
     
-    def ingest_alerts(self, alerts: List[Alert]):
-        """Ingest new alerts from the API."""
+    def ingest_alerts(self, alerts: List[Alert], reconcile: bool = True):
+        """
+        Ingest alerts from the API.
+
+        Args:
+            alerts: List of alerts from the API
+            reconcile: If True, remove local alerts not in the API's active list.
+                      Set to True when fetching the full active alerts list.
+        """
         with self._get_conn() as conn:
+            # Get current active alert IDs from API response
+            api_alert_ids = {alert.id for alert in alerts if not alert.resolved_at}
+
+            # Reconcile: remove local alerts that are no longer active in API
+            if reconcile:
+                local_alerts = conn.execute("SELECT id FROM active_alerts").fetchall()
+                for row in local_alerts:
+                    if row['id'] not in api_alert_ids:
+                        conn.execute("DELETE FROM active_alerts WHERE id = ?", (row['id'],))
+
             for alert in alerts:
                 if alert.resolved_at:
                     # Alert resolved - remove from active
@@ -259,22 +276,22 @@ class StateManager:
                 else:
                     # New or ongoing alert
                     conn.execute("""
-                        INSERT OR REPLACE INTO active_alerts 
+                        INSERT OR REPLACE INTO active_alerts
                         (id, site, device, alert_type, severity, message, started_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, (alert.id, alert.site, alert.device, alert.alert_type,
                           alert.severity, alert.message, alert.started_at.isoformat()))
-                    
+
                     # Ensure site has a state record
                     conn.execute("""
                         INSERT OR IGNORE INTO site_states (site, concern_level)
                         VALUES (?, 'NORMAL')
                     """, (alert.site,))
-                    
+
                     # If site is NORMAL, move to WATCHING
                     conn.execute("""
-                        UPDATE site_states 
-                        SET concern_level = 'WATCHING', 
+                        UPDATE site_states
+                        SET concern_level = 'WATCHING',
                             watching_since = COALESCE(watching_since, ?),
                             updated_at = CURRENT_TIMESTAMP
                         WHERE site = ? AND concern_level = 'NORMAL'
@@ -307,6 +324,22 @@ class StateManager:
         """Remove an alert from active alerts."""
         with self._get_conn() as conn:
             conn.execute("DELETE FROM active_alerts WHERE id = ?", (alert_id,))
+
+    def reconcile_site_states(self):
+        """
+        Reset concern levels for sites with no active alerts.
+        Should be called after ingesting alerts.
+        """
+        with self._get_conn() as conn:
+            # Get sites with elevated concern but no active alerts
+            conn.execute("""
+                UPDATE site_states
+                SET concern_level = 'NORMAL',
+                    watching_since = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE concern_level != 'NORMAL'
+                  AND site NOT IN (SELECT DISTINCT site FROM active_alerts)
+            """)
             
     # =========================================================================
     # Site State Management  

@@ -79,25 +79,28 @@ class NOCClaude:
                         self._do_morning_summary()
                         last_summary_date = today
                 
-                # 2. Fetch new alerts from Rails API
-                new_alerts = self._fetch_new_alerts()
+                # 2. Fetch all active alerts from Rails API
+                alerts = self._fetch_alerts()
+
+                # 3. Ingest alerts and reconcile state
+                self.state.ingest_alerts(alerts, reconcile=True)
+                if alerts:
+                    self.output.info(f"Tracking {len(alerts)} active alerts")
+
+                # 4. Reconcile site states (reset sites with no active alerts)
+                self.state.reconcile_site_states()
                 
-                # 3. Ingest alerts into state
-                if new_alerts:
-                    self.state.ingest_alerts(new_alerts)
-                    self.output.info(f"Ingested {len(new_alerts)} new alerts")
-                
-                # 4. Check for state transitions (watching -> investigating)
+                # 5. Check for state transitions (watching -> investigating)
                 self._check_state_transitions()
-                
-                # 5. For each site needing attention, investigate
+
+                # 6. For each site needing attention, investigate
                 for site in self.state.sites_needing_attention():
                     self._investigate_site(site)
-                
-                # 6. Check for auto-recoveries
+
+                # 7. Check for auto-recoveries
                 self._check_recoveries()
-                
-                # 7. Sleep until next poll
+
+                # 8. Sleep until next poll
                 elapsed = time.time() - loop_start
                 sleep_time = max(0, self.config.poll_interval_seconds - elapsed)
                 time.sleep(sleep_time)
@@ -110,11 +113,11 @@ class NOCClaude:
                 
         self.output.system("NC shutdown complete.")
         
-    def _fetch_new_alerts(self) -> list:
-        """Fetch new alerts from Rails API."""
+    def _fetch_alerts(self) -> list:
+        """Fetch all active alerts from Rails API for full reconciliation."""
         try:
-            since = self.state.get_last_poll_time()
-            alerts = self.api.get_alerts(since=since)
+            # Fetch ALL active alerts (no 'since' filter) to properly reconcile state
+            alerts = self.api.get_alerts(status="active")
             self.state.update_last_poll_time()
             return alerts
         except Exception as e:
