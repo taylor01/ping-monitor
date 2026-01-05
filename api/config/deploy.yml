@@ -12,7 +12,7 @@ servers:
     proxy: false
     labels:
       traefik.enable: true
-      traefik.http.routers.ping-monitor-api.rule: Host(`<%= ENV['API_HOST'] %>`)
+      traefik.http.routers.ping-monitor-api.rule: Host(`api.ping-monitor.home.taylorcrib.com`)
       traefik.http.routers.ping-monitor-api.entrypoints: websecure
       traefik.http.routers.ping-monitor-api.tls.certresolver: letsencrypt
       traefik.http.services.ping-monitor-api.loadbalancer.server.port: 3000
