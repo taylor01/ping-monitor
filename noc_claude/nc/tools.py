@@ -58,6 +58,9 @@ class ToolExecutor:
         host_ip = params.get("host_ip")
         site = params.get("site")
 
+        # Debug: log received parameters
+        self.output.debug(f"ping_device params: host={host}, host_ip={host_ip}, site={site}")
+
         if not host and not host_ip:
             return "Error: host or host_ip parameter required"
 
@@ -65,9 +68,18 @@ class ToolExecutor:
         ping_target = host_ip if host_ip else host
         display_name = f"{host} ({host_ip})" if host_ip and host else (host or host_ip)
 
+        # Debug: log what we're actually pinging
+        if host_ip:
+            self.output.debug(f"Using IP address: {ping_target}")
+        else:
+            self.output.warning(f"No host_ip provided, falling back to hostname: {ping_target}")
+
         try:
+            cmd = ["ping", "-c", "3", "-W", "2", ping_target]
+            self.output.debug(f"Executing: {' '.join(cmd)}")
+
             result = subprocess.run(
-                ["ping", "-c", "3", "-W", "2", ping_target],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=10

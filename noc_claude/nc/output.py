@@ -102,7 +102,15 @@ class NCOutput:
     def info(self, message: str):
         """Log info message."""
         self._log("ℹ️", "INFO", None, message)
-        
+
+    def debug(self, message: str):
+        """Log debug message."""
+        self._log("🐛", "DEBUG", None, message)
+
+    def warning(self, message: str):
+        """Log warning message."""
+        self._log("⚠️", "WARN", None, message)
+
     def error(self, message: str):
         """Log error message."""
         self._log("❌", "ERROR", None, message)
