@@ -104,7 +104,8 @@ class SiteContext:
         ]
         
         for alert in self.active_alerts:
-            lines.append(f"  - {alert.device}: {alert.alert_type} since {alert.started_at.strftime('%H:%M:%S')}")
+            ip_info = f" [{alert.host_ip}]" if alert.host_ip else ""
+            lines.append(f"  - {alert.device}{ip_info}: {alert.alert_type} since {alert.started_at.strftime('%H:%M:%S')}")
             
         if self.watching_since:
             elapsed = (datetime.now(timezone.utc) - self.watching_since).total_seconds()
