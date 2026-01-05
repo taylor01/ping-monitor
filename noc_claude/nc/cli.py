@@ -13,6 +13,8 @@ from nc.config import Config
 from nc.state import StateManager
 from nc.output import NCOutput
 from nc.api_client import RailsAPIClient, AuthenticationError
+from nc.claude_client import NC_TOOLS
+from nc.tools import ToolExecutor
 
 
 def run_cli(config_path: str):
@@ -23,6 +25,7 @@ def run_cli(config_path: str):
     output = NCOutput(config.timezone)
     client = Anthropic()
     api = RailsAPIClient(config.rails_api)
+    tools = ToolExecutor(config, api, state, output)
 
     print()
     print("=" * 60)
@@ -76,7 +79,7 @@ def run_cli(config_path: str):
                 _cmd_learn(state, output, args, client, config)
                 
             elif cmd == "ask":
-                _cmd_ask(state, output, args, client, config)
+                _cmd_ask(state, output, args, client, config, tools)
                 
             elif cmd == "incidents":
                 _cmd_incidents(state, output)
@@ -236,37 +239,93 @@ Respond with JSON only, no other text:
         print("Try being more specific, e.g., 'nas.home reboots daily at 3:00 AM'")
 
 
-def _cmd_ask(state: StateManager, output: NCOutput, args: str, client, config):
-    """Ask NC a question."""
-    
+def _cmd_ask(state: StateManager, output: NCOutput, args: str, client, config, tools: ToolExecutor):
+    """Ask NC a question with full tool access."""
+
     if not args:
         print("Usage: ask <question>")
         return
-        
+
     # Gather context
     all_statuses = state.get_all_site_statuses()
     pending = state.get_pending_human_review()
-    
+    active_alerts = state.get_active_alerts()
+
+    alerts_summary = []
+    for alert in active_alerts[:20]:  # Limit to 20 most recent
+        alerts_summary.append({
+            "site": alert.site,
+            "device": alert.device,
+            "type": alert.alert_type,
+            "since": alert.started_at.isoformat() if alert.started_at else None
+        })
+
     context = f"""Current site statuses: {json.dumps(all_statuses)}
-    
+
+Active alerts: {json.dumps(alerts_summary)}
+
 Pending incidents needing review: {len(pending)}"""
-    
-    response = client.messages.create(
-        model=config.claude_model,
-        max_tokens=1000,
-        system="""You are NC (NOC Claude), answering a question from a human operator.
-Be concise and helpful. You have access to monitoring data for multiple sites.""",
-        messages=[{
-            "role": "user",
-            "content": f"""Context:
+
+    system_prompt = """You are NC (NOC Claude), an intelligent network operations center engineer.
+You're answering a question from a human operator. Be concise and helpful.
+
+You have access to tools to investigate the network:
+- ping_device: Check if a device is reachable
+- check_tailscale_status: Check if a site's VPN is online
+- query_alerts: Get alerts from the monitoring API
+- get_device_history: Get recent history for a device
+- check_learned_patterns: Check for known patterns
+- search_past_incidents: Search resolved incidents
+
+Use tools when the human asks about device status, connectivity, or network issues.
+Be proactive in using tools to answer questions accurately."""
+
+    messages = [{
+        "role": "user",
+        "content": f"""Context:
 {context}
 
 Question: {args}"""
-        }]
-    )
-    
-    print()
-    output.nc_reply(response.content[0].text)
+    }]
+
+    # Agentic loop - let Claude use tools until done
+    max_iterations = 10
+    for _ in range(max_iterations):
+        response = client.messages.create(
+            model=config.claude_model,
+            max_tokens=2000,
+            system=system_prompt,
+            tools=NC_TOOLS,
+            messages=messages
+        )
+
+        if response.stop_reason == "tool_use":
+            # Execute tool calls and continue conversation
+            tool_results = []
+            assistant_content = response.content
+
+            for block in response.content:
+                if block.type == "tool_use":
+                    result = tools.execute(block.name, block.input)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result
+                    })
+
+            messages.append({"role": "assistant", "content": assistant_content})
+            messages.append({"role": "user", "content": tool_results})
+
+        else:
+            # Claude is done - print the response
+            print()
+            for block in response.content:
+                if hasattr(block, "text"):
+                    output.nc_reply(block.text)
+            print()
+            return
+
+    print("(Reached max iterations)")
     print()
 
 
