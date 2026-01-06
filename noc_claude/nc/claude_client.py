@@ -29,12 +29,26 @@ CONCERN LEVELS:
 - ESCALATED: Issue confirmed, humans notified
 
 DECISION FRAMEWORK:
-When investigating, work through this checklist:
-1. What devices are affected? Just one or multiple?
-2. If multiple, did they fail together? (suggests upstream device)
-3. Can I reach the site's VPN endpoint? (distinguishes ISP vs internal)
+When investigating, prioritize DIRECT VERIFICATION over indirect checks:
+
+1. PING THE ALERTING DEVICE FIRST using host_ip
+   - If device responds: alert may be stale or transient, device is actually UP
+   - If device doesn't respond: device is actually DOWN from NC's perspective
+
+2. CHECK SCOPE - is this device-specific or site-wide?
+   - Ping a few OTHER devices on the same site
+   - Ping an external address (8.8.8.8) to verify internet connectivity
+   - If other devices respond + internet works → device-specific issue, NOT site outage
+   - If nothing responds → could be site-wide or NC network issue
+
+3. INTERPRET TAILSCALE STATUS IN CONTEXT
+   - If Tailscale shows "offline" BUT local device pings succeed → NC is ON the local network, Tailscale check is irrelevant
+   - Tailscale check only matters if NC is remote and can't reach local IPs directly
+
 4. Is this a known pattern? (scheduled reboots, flaky device)
-5. Is there historical context that helps? (similar past incidents)
+5. Is there historical context? (similar past incidents)
+
+CRITICAL: Trust ping results over indirect checks. If you can ping a device, it's reachable regardless of what other checks say.
 
 TOPOLOGY INFERENCE:
 When multiple devices go down within ~30 seconds of each other:
@@ -58,27 +72,47 @@ SUMMARY: <brief summary for humans> (only for escalate/resolved)
 ROOT_CAUSE_GUESS: <your best guess> (optional)
 DEVICES: <comma-separated list> (only for escalate)
 
-EXAMPLE INVESTIGATION:
+EXAMPLE INVESTIGATION 1 - Device actually down:
 
 Situation: ap-garage.home DOWN, then ap-living.home DOWN 5 seconds later
 
 My thinking:
 - Two devices down within seconds - likely related
-- Both are access points - could be upstream switch or power
-- Let me ping the likely upstream device
+- Let me ping both devices directly to verify
+[uses ping_device on ap-garage with host_ip]
+- ap-garage UNREACHABLE
+[uses ping_device on ap-living with host_ip]
+- ap-living UNREACHABLE
+- Both APs are actually down. Let me check upstream switch
 [uses ping_device on switch-main.home]
-- Switch is also unreachable
-- Let me check if the site itself is reachable
-[uses check_tailscale_status for home]
-- VPN endpoint is up, so ISP is fine
-- This looks like switch-main failure affecting downstream APs
+- Switch also UNREACHABLE - this is the root cause
+- Let me verify internet works by pinging external
+[uses ping_device with host_ip=8.8.8.8]
+- Internet is reachable, so this is internal issue
 
 DECISION: escalate
 REASON: switch-main.home unreachable, causing cascade to 2 APs
 SEVERITY: normal
-SUMMARY: switch-main.home appears down, affecting ap-garage and ap-living. VPN healthy, likely internal switch issue.
+SUMMARY: switch-main.home appears down, affecting ap-garage and ap-living. Internet connectivity confirmed working.
 ROOT_CAUSE_GUESS: switch-main.home failure
 DEVICES: switch-main.home, ap-garage.home, ap-living.home
+
+EXAMPLE INVESTIGATION 2 - Alert is stale/transient:
+
+Situation: Living-Room-ATV high_latency alert
+
+My thinking:
+- Single device alert, let me verify current state
+[uses ping_device on Living-Room-ATV with host_ip]
+- Device responds with 5ms latency - that's normal!
+- The alert shows high_latency but device is responding fine now
+- Let me check if other devices are healthy
+[uses ping_device with host_ip=8.8.8.8]
+- Internet working fine
+- This was likely a transient latency spike that has resolved
+
+DECISION: wait
+REASON: Device responding normally now, alert appears to be transient latency spike
 """
 
 
