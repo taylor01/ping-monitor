@@ -85,8 +85,9 @@ class SNMPMonitor:
     def _check_snmp_available(self) -> bool:
         """Check if pysnmp library is available"""
         try:
-            from pysnmp.hlapi import (
-                getCmd, SnmpEngine, CommunityData, UdpTransportTarget,
+            # pysnmp 7.x uses v3arch module path
+            from pysnmp.hlapi.v3arch import (
+                get_cmd, SnmpEngine, CommunityData, UdpTransportTarget,
                 ContextData, ObjectType, ObjectIdentity
             )
             return True
@@ -114,8 +115,8 @@ class SNMPMonitor:
         if not self._snmp_available:
             return {}
 
-        from pysnmp.hlapi import (
-            getCmd, SnmpEngine, CommunityData, UdpTransportTarget,
+        from pysnmp.hlapi.v3arch import (
+            get_cmd, SnmpEngine, CommunityData, UdpTransportTarget,
             ContextData, ObjectType, ObjectIdentity
         )
 
@@ -126,7 +127,7 @@ class SNMPMonitor:
 
         try:
             error_indication, error_status, error_index, var_binds = next(
-                getCmd(
+                get_cmd(
                     SnmpEngine(),
                     CommunityData(community, mpModel=1),  # SNMPv2c
                     UdpTransportTarget(

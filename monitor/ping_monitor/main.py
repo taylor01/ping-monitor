@@ -503,7 +503,7 @@ class PingMonitor:
                 tags.extend([f"tag:{t}" for t in host.tags])
 
             # Send metrics
-            self.datadog_client._send_metric(
+            self.datadog_client.send_metric(
                 "custom.ups.reachable",
                 1 if status.is_reachable else 0,
                 tags,
@@ -511,42 +511,42 @@ class PingMonitor:
 
             if status.is_reachable:
                 if status.on_battery is not None:
-                    self.datadog_client._send_metric(
+                    self.datadog_client.send_metric(
                         "custom.ups.on_battery",
                         1 if status.on_battery else 0,
                         tags,
                     )
 
                 if status.battery_runtime_minutes is not None:
-                    self.datadog_client._send_metric(
+                    self.datadog_client.send_metric(
                         "custom.ups.battery_runtime_minutes",
                         status.battery_runtime_minutes,
                         tags,
                     )
 
                 if status.battery_charge_percent is not None:
-                    self.datadog_client._send_metric(
+                    self.datadog_client.send_metric(
                         "custom.ups.battery_charge_percent",
                         status.battery_charge_percent,
                         tags,
                     )
 
                 if status.output_load_percent is not None:
-                    self.datadog_client._send_metric(
+                    self.datadog_client.send_metric(
                         "custom.ups.output_load_percent",
                         status.output_load_percent,
                         tags,
                     )
 
                 if status.input_voltage is not None:
-                    self.datadog_client._send_metric(
+                    self.datadog_client.send_metric(
                         "custom.ups.input_voltage",
                         status.input_voltage,
                         tags,
                     )
 
                 if status.output_voltage is not None:
-                    self.datadog_client._send_metric(
+                    self.datadog_client.send_metric(
                         "custom.ups.output_voltage",
                         status.output_voltage,
                         tags,
