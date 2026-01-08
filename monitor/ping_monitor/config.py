@@ -29,6 +29,14 @@ class Config:
     ping_timeout: int = 2
     max_workers: int = 20
 
+    # SNMP UPS monitoring settings
+    snmp_enabled: bool = True
+    snmp_interval: int = 60
+    snmp_default_community: str = "public"
+    snmp_timeout: int = 2
+    snmp_retries: int = 1
+    snmp_max_workers: int = 10
+
     # Paths
     buffer_db_path: Path = Path("/data/buffer.db")
     hosts_config_path: Path = Path("/config/hosts.json")
@@ -55,6 +63,12 @@ class Config:
             ping_count=int(os.getenv("PING_COUNT", "3")),
             ping_timeout=int(os.getenv("PING_TIMEOUT", "2")),
             max_workers=int(os.getenv("MAX_WORKERS", "20")),
+            snmp_enabled=os.getenv("SNMP_ENABLED", "true").lower() in ("true", "1", "yes"),
+            snmp_interval=int(os.getenv("SNMP_INTERVAL", "60")),
+            snmp_default_community=os.getenv("SNMP_DEFAULT_COMMUNITY", "public"),
+            snmp_timeout=int(os.getenv("SNMP_TIMEOUT", "2")),
+            snmp_retries=int(os.getenv("SNMP_RETRIES", "1")),
+            snmp_max_workers=int(os.getenv("SNMP_MAX_WORKERS", "10")),
             buffer_db_path=Path(os.getenv("BUFFER_DB_PATH", "/data/buffer.db")),
             hosts_config_path=Path(os.getenv("LOCAL_HOSTS", "/config/hosts.json")),
             hosts_cache_path=Path(os.getenv("LOCAL_CACHE", "/data/hosts-cache.json")),
@@ -94,6 +108,11 @@ class Config:
         """Check if Datadog is configured"""
         return bool(self.dd_api_key)
 
+    @property
+    def has_snmp(self) -> bool:
+        """Check if SNMP monitoring is enabled"""
+        return self.snmp_enabled
+
     def validate(self) -> None:
         """
         Validate configuration
@@ -111,3 +130,6 @@ class Config:
 
         if self.ping_count < 1:
             raise ValueError("PING_COUNT must be at least 1")
+
+        if self.snmp_enabled and self.snmp_interval < 10:
+            raise ValueError("SNMP_INTERVAL must be at least 10 seconds")

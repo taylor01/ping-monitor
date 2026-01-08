@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from typing import List, Optional, Dict
 
 from .config import Config
-from .models import Host, MeasurementBatch
+from .models import Host, MeasurementBatch, UPSBatch
 from .pinger import Pinger
+from .snmp_monitor import SNMPMonitor
 from .buffer import MeasurementBuffer
 from .api_client import RailsAPIClient
 from .datadog import DatadogClient, DatadogLogsClient
@@ -47,12 +48,23 @@ class PingMonitor:
 
         # State tracking for detecting transitions
         self.host_states: Dict[str, bool] = {}  # host_name -> is_up
+        self.ups_states: Dict[str, bool] = {}  # host_name -> on_battery
 
         # Initialize components
         self.pinger = Pinger(
             count=config.ping_count, timeout=config.ping_timeout
         )
         self.buffer = MeasurementBuffer(config.buffer_db_path)
+
+        # SNMP UPS monitoring (optional)
+        self.snmp_monitor: Optional[SNMPMonitor] = None
+        if config.has_snmp:
+            self.snmp_monitor = SNMPMonitor(
+                default_community=config.snmp_default_community,
+                timeout=config.snmp_timeout,
+                retries=config.snmp_retries,
+                max_workers=config.snmp_max_workers,
+            )
 
         # Optional components based on config
         self.api_client: Optional[RailsAPIClient] = None
@@ -92,6 +104,8 @@ class PingMonitor:
                 attributes={
                     "site": self.config.site_name,
                     "ping_interval": self.config.ping_interval,
+                    "snmp_enabled": self.config.has_snmp,
+                    "snmp_interval": self.config.snmp_interval if self.config.has_snmp else None,
                     "rails_api_enabled": self.config.has_rails_api,
                     "datadog_enabled": self.config.has_datadog,
                 },
@@ -122,11 +136,15 @@ class PingMonitor:
                     description=h.get("description"),
                     type=h.get("type"),
                     tags=h.get("tags"),
+                    snmp_enabled=h.get("snmp_enabled", False),
+                    snmp_community=h.get("snmp_community"),
+                    snmp_version=h.get("snmp_version", "2c"),
                 )
                 for h in hosts_data
             ]
 
-            logger.info(f"Loaded {len(hosts)} hosts from {hosts_path}")
+            snmp_hosts = [h for h in hosts if h.snmp_enabled]
+            logger.info(f"Loaded {len(hosts)} hosts from {hosts_path} ({len(snmp_hosts)} SNMP-enabled)")
             return hosts
 
         except Exception as e:
@@ -314,29 +332,301 @@ class PingMonitor:
                 await self.buffer.mark_failed(record["id"], str(e))
                 logger.error(f"Error draining buffered measurement {record['id']}: {e}")
 
+    async def snmp_cycle(self) -> None:
+        """Execute one SNMP polling cycle for UPS devices"""
+        if not self.snmp_monitor or not self.snmp_monitor.is_available:
+            return
+
+        # Generate correlation ID for this cycle
+        correlation_id = generate_correlation_id()
+        set_correlation_id(correlation_id)
+
+        start_time = time.time()
+
+        # Load hosts
+        hosts = await self.load_hosts()
+        if not hosts:
+            return
+
+        # Filter to SNMP-enabled hosts only
+        snmp_hosts = [h for h in hosts if h.snmp_enabled]
+        if not snmp_hosts:
+            logger.debug("no_snmp_hosts")
+            return
+
+        # Poll UPS devices
+        results = await asyncio.to_thread(self.snmp_monitor.poll_ups_devices, hosts)
+        if not results:
+            logger.warning("no_snmp_results")
+            return
+
+        # Create UPS batch
+        batch = UPSBatch(
+            site=self.config.site_name,
+            timestamp=datetime.now(timezone.utc),
+            ups_statuses=results,
+        )
+
+        duration = time.time() - start_time
+
+        logger.info(
+            "snmp_cycle_complete",
+            ups_count=batch.count,
+            ups_reachable=batch.ups_reachable,
+            ups_on_battery=batch.ups_on_battery,
+            duration_seconds=round(duration, 2),
+        )
+
+        # Detect and log UPS state changes
+        await self._detect_ups_state_changes(results)
+
+        # Send UPS metrics to Datadog
+        if self.datadog_client:
+            await asyncio.to_thread(
+                self._send_ups_to_datadog, snmp_hosts, results
+            )
+
+        # Log UPS cycle summary to Datadog Logs
+        if self.datadog_logs_client:
+            self.datadog_logs_client.log_monitor_event(
+                event_type="snmp_cycle",
+                message=f"SNMP UPS poll complete: {batch.ups_reachable}/{batch.count} reachable, {batch.ups_on_battery} on battery",
+                status="info" if batch.ups_on_battery == 0 else "warning",
+                attributes={
+                    "site": self.config.site_name,
+                    "ups_count": batch.count,
+                    "ups_reachable": batch.ups_reachable,
+                    "ups_on_battery": batch.ups_on_battery,
+                    "duration_seconds": round(duration, 2),
+                },
+            )
+
+    async def _detect_ups_state_changes(self, results: List) -> None:
+        """
+        Detect and log UPS power state changes
+
+        Args:
+            results: List of UPSStatus objects from current cycle
+        """
+        for status in results:
+            if not status.is_reachable or status.on_battery is None:
+                continue
+
+            previous_state = self.ups_states.get(status.host)
+            current_state = status.on_battery
+
+            # First time seeing this UPS
+            if previous_state is None:
+                self.ups_states[status.host] = current_state
+                logger.info(
+                    "ups_initial_state",
+                    host=status.host,
+                    ip=status.ip,
+                    power_source="battery" if current_state else "facility",
+                    battery_runtime_minutes=status.battery_runtime_minutes,
+                    battery_charge_percent=status.battery_charge_percent,
+                )
+                continue
+
+            # State changed
+            if previous_state != current_state:
+                prev_state_str = "battery" if previous_state else "facility"
+                curr_state_str = "battery" if current_state else "facility"
+
+                log_level = logger.warning if current_state else logger.info
+                log_level(
+                    "ups_power_state_change",
+                    host=status.host,
+                    ip=status.ip,
+                    previous_source=prev_state_str,
+                    current_source=curr_state_str,
+                    battery_runtime_minutes=status.battery_runtime_minutes,
+                    battery_charge_percent=status.battery_charge_percent,
+                )
+
+                # Update state
+                self.ups_states[status.host] = current_state
+
+                # Send critical alert to Datadog Logs if going to battery
+                if self.datadog_logs_client:
+                    alert_status = "warning" if current_state else "info"
+                    message = (
+                        f"UPS {status.host} switched to BATTERY power! "
+                        f"Runtime: {status.battery_runtime_minutes} min, Charge: {status.battery_charge_percent}%"
+                        if current_state
+                        else f"UPS {status.host} returned to facility power"
+                    )
+                    self.datadog_logs_client.log_monitor_event(
+                        event_type="ups_power_change",
+                        message=message,
+                        status=alert_status,
+                        attributes={
+                            "host": status.host,
+                            "ip": status.ip,
+                            "previous_source": prev_state_str,
+                            "current_source": curr_state_str,
+                            "battery_runtime_minutes": status.battery_runtime_minutes,
+                            "battery_charge_percent": status.battery_charge_percent,
+                            "output_load_percent": status.output_load_percent,
+                        },
+                    )
+
+    def _send_ups_to_datadog(self, hosts: List[Host], results: List) -> None:
+        """
+        Send UPS metrics to Datadog
+
+        Args:
+            hosts: List of Host objects
+            results: List of UPSStatus objects
+        """
+        if not self.datadog_client:
+            return
+
+        # Build host lookup
+        host_lookup = {h.name: h for h in hosts}
+
+        for status in results:
+            host = host_lookup.get(status.host)
+            if not host:
+                continue
+
+            tags = [
+                f"site:{self.config.site_name}",
+                f"host:{status.host}",
+                f"ip:{status.ip}",
+            ]
+
+            if host.type:
+                tags.append(f"device_type:{host.type}")
+
+            if host.tags:
+                tags.extend([f"tag:{t}" for t in host.tags])
+
+            # Send metrics
+            self.datadog_client._send_metric(
+                "custom.ups.reachable",
+                1 if status.is_reachable else 0,
+                tags,
+            )
+
+            if status.is_reachable:
+                if status.on_battery is not None:
+                    self.datadog_client._send_metric(
+                        "custom.ups.on_battery",
+                        1 if status.on_battery else 0,
+                        tags,
+                    )
+
+                if status.battery_runtime_minutes is not None:
+                    self.datadog_client._send_metric(
+                        "custom.ups.battery_runtime_minutes",
+                        status.battery_runtime_minutes,
+                        tags,
+                    )
+
+                if status.battery_charge_percent is not None:
+                    self.datadog_client._send_metric(
+                        "custom.ups.battery_charge_percent",
+                        status.battery_charge_percent,
+                        tags,
+                    )
+
+                if status.output_load_percent is not None:
+                    self.datadog_client._send_metric(
+                        "custom.ups.output_load_percent",
+                        status.output_load_percent,
+                        tags,
+                    )
+
+                if status.input_voltage is not None:
+                    self.datadog_client._send_metric(
+                        "custom.ups.input_voltage",
+                        status.input_voltage,
+                        tags,
+                    )
+
+                if status.output_voltage is not None:
+                    self.datadog_client._send_metric(
+                        "custom.ups.output_voltage",
+                        status.output_voltage,
+                        tags,
+                    )
+
+    async def _ping_loop(self) -> None:
+        """ICMP ping loop - runs independently"""
+        while self.running and not self.shutdown_event.is_set():
+            await self.ping_cycle()
+
+            # Wait for next cycle or shutdown
+            try:
+                await asyncio.wait_for(
+                    self.shutdown_event.wait(),
+                    timeout=self.config.ping_interval,
+                )
+            except asyncio.TimeoutError:
+                pass
+
+    async def _snmp_loop(self) -> None:
+        """SNMP UPS polling loop - runs independently"""
+        if not self.snmp_monitor or not self.snmp_monitor.is_available:
+            logger.info("SNMP monitoring disabled or unavailable")
+            return
+
+        while self.running and not self.shutdown_event.is_set():
+            await self.snmp_cycle()
+
+            # Wait for next cycle or shutdown
+            try:
+                await asyncio.wait_for(
+                    self.shutdown_event.wait(),
+                    timeout=self.config.snmp_interval,
+                )
+            except asyncio.TimeoutError:
+                pass
+
     async def run(self) -> None:
-        """Main monitoring loop"""
+        """Main monitoring loop - runs ICMP and SNMP loops concurrently"""
         self.running = True
         logger.info("=" * 60)
         logger.info("Ping Monitor Starting")
         logger.info(f"Site: {self.config.site_name}")
         logger.info(f"Ping Interval: {self.config.ping_interval}s")
+        snmp_status = "Enabled" if self.snmp_monitor and self.snmp_monitor.is_available else "Disabled"
+        logger.info(f"SNMP Monitoring: {snmp_status}")
+        if self.snmp_monitor and self.snmp_monitor.is_available:
+            logger.info(f"SNMP Interval: {self.config.snmp_interval}s")
         logger.info(f"Rails API: {'Enabled' if self.api_client else 'Disabled'}")
         logger.info(f"Datadog: {'Enabled' if self.datadog_client else 'Disabled'}")
         logger.info("=" * 60)
 
         try:
-            while self.running and not self.shutdown_event.is_set():
-                await self.ping_cycle()
+            # Run ICMP and SNMP loops concurrently
+            # They have independent intervals and don't block each other
+            tasks = [
+                asyncio.create_task(self._ping_loop(), name="ping_loop"),
+            ]
 
-                # Wait for next cycle or shutdown
+            # Only add SNMP loop if enabled and available
+            if self.snmp_monitor and self.snmp_monitor.is_available:
+                tasks.append(asyncio.create_task(self._snmp_loop(), name="snmp_loop"))
+
+            # Wait for any task to complete (usually due to shutdown)
+            done, pending = await asyncio.wait(
+                tasks,
+                return_when=asyncio.FIRST_EXCEPTION,
+            )
+
+            # Check for exceptions
+            for task in done:
+                if task.exception():
+                    logger.error(f"Task {task.get_name()} failed: {task.exception()}")
+
+            # Cancel pending tasks
+            for task in pending:
+                task.cancel()
                 try:
-                    await asyncio.wait_for(
-                        self.shutdown_event.wait(),
-                        timeout=self.config.ping_interval,
-                    )
-                except asyncio.TimeoutError:
-                    # Timeout is expected, continue to next cycle
+                    await task
+                except asyncio.CancelledError:
                     pass
 
         except Exception as e:
