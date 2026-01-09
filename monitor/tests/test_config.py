@@ -99,3 +99,70 @@ def test_config_from_env(monkeypatch):
     assert config.dd_site == "datadoghq.eu"
     assert config.ping_interval == 120
     assert config.ping_count == 5
+
+
+def test_config_snmp_defaults():
+    """Test default SNMP configuration values"""
+    config = Config()
+
+    assert config.snmp_enabled is True
+    assert config.snmp_interval == 60
+    assert config.snmp_default_community == "public"
+    assert config.snmp_timeout == 2
+    assert config.snmp_retries == 1
+    assert config.snmp_max_workers == 10
+
+
+def test_config_has_snmp():
+    """Test has_snmp property"""
+    config1 = Config(snmp_enabled=True)
+    assert config1.has_snmp is True
+
+    config2 = Config(snmp_enabled=False)
+    assert config2.has_snmp is False
+
+
+def test_config_snmp_from_env(monkeypatch):
+    """Test loading SNMP configuration from environment variables"""
+    monkeypatch.setenv("DD_API_KEY", "test-dd-key")
+    monkeypatch.setenv("SNMP_ENABLED", "true")
+    monkeypatch.setenv("SNMP_INTERVAL", "120")
+    monkeypatch.setenv("SNMP_DEFAULT_COMMUNITY", "private")
+    monkeypatch.setenv("SNMP_TIMEOUT", "5")
+    monkeypatch.setenv("SNMP_RETRIES", "3")
+    monkeypatch.setenv("SNMP_MAX_WORKERS", "20")
+
+    config = Config.from_env()
+
+    assert config.snmp_enabled is True
+    assert config.snmp_interval == 120
+    assert config.snmp_default_community == "private"
+    assert config.snmp_timeout == 5
+    assert config.snmp_retries == 3
+    assert config.snmp_max_workers == 20
+
+
+def test_config_snmp_disabled_from_env(monkeypatch):
+    """Test SNMP can be disabled via environment variable"""
+    monkeypatch.setenv("DD_API_KEY", "test-dd-key")
+    monkeypatch.setenv("SNMP_ENABLED", "false")
+
+    config = Config.from_env()
+
+    assert config.snmp_enabled is False
+
+
+def test_config_validate_invalid_snmp_interval():
+    """Test validation fails with invalid SNMP interval"""
+    config = Config(dd_api_key="test", snmp_enabled=True, snmp_interval=5)
+
+    with pytest.raises(ValueError, match="SNMP_INTERVAL must be at least 10 seconds"):
+        config.validate()
+
+
+def test_config_validate_snmp_disabled_with_low_interval():
+    """Test validation passes when SNMP is disabled even with low interval"""
+    config = Config(dd_api_key="test", snmp_enabled=False, snmp_interval=5)
+
+    # Should not raise because SNMP is disabled
+    config.validate()

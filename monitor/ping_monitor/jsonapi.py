@@ -4,7 +4,7 @@ Spec: https://jsonapi.org/format/
 """
 
 from typing import Dict, Any
-from .models import MeasurementBatch
+from .models import MeasurementBatch, UPSBatch
 
 
 def format_measurement_batch(batch: MeasurementBatch) -> Dict[str, Any]:
@@ -85,6 +85,57 @@ def parse_jsonapi_response(response_data: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "success": False,
         "errors": [{"title": "Invalid JSON:API response format"}]
+    }
+
+
+def format_ups_batch(batch: UPSBatch) -> Dict[str, Any]:
+    """
+    Format a UPS status batch as JSON:API compliant payload
+
+    JSON:API structure for creating resources:
+    {
+      "data": {
+        "type": "ups-batches",
+        "attributes": {
+          "site": "home",
+          "timestamp": "2025-12-31T12:00:00Z",
+          "ups_statuses": [...]
+        }
+      }
+    }
+
+    Args:
+        batch: UPSBatch to format
+
+    Returns:
+        JSON:API compliant dictionary
+    """
+    return {
+        "data": {
+            "type": "ups-batches",
+            "attributes": {
+                "site": batch.site,
+                "timestamp": batch.timestamp.isoformat(),
+                "ups_statuses": [
+                    {
+                        "host": s.host,
+                        "ip": s.ip,
+                        "timestamp": s.timestamp.isoformat(),
+                        "is_reachable": s.is_reachable,
+                        "on_battery": s.on_battery,
+                        "battery_runtime_minutes": s.battery_runtime_minutes,
+                        "battery_charge_percent": s.battery_charge_percent,
+                        "output_load_percent": s.output_load_percent,
+                        "input_voltage": s.input_voltage,
+                        "output_voltage": s.output_voltage,
+                        "battery_voltage": s.battery_voltage,
+                        "ups_model": s.ups_model,
+                        "error_message": s.error_message,
+                    }
+                    for s in batch.ups_statuses
+                ]
+            }
+        }
     }
 
 

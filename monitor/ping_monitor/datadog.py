@@ -141,6 +141,52 @@ class DatadogClient:
         except Exception as e:
             logger.error("datadog_metric_error", host=host.name, error=str(e))
 
+    def send_metric(
+        self,
+        metric_name: str,
+        value: float,
+        tags: List[str],
+        host_name: Optional[str] = None,
+    ) -> None:
+        """
+        Send a single metric to Datadog
+
+        Args:
+            metric_name: Name of the metric
+            value: Metric value
+            tags: List of tags
+            host_name: Optional host name
+        """
+        timestamp = int(time.time())
+
+        metric = {
+            "metric": metric_name,
+            "type": "gauge",
+            "points": [[timestamp, value]],
+            "tags": tags,
+        }
+
+        if host_name:
+            metric["host"] = host_name
+
+        try:
+            response = requests.post(
+                self.api_url,
+                headers={
+                    "DD-API-KEY": self.api_key,
+                    "Content-Type": "application/json",
+                },
+                json={"series": [metric]},
+                timeout=10,
+            )
+
+            if not response.ok:
+                logger.error(
+                    f"Datadog API error: {response.status_code} - {response.text}"
+                )
+        except Exception as e:
+            logger.error("datadog_metric_error", metric=metric_name, error=str(e))
+
 
 class DatadogLogsClient:
     """
