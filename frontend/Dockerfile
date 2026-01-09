@@ -13,7 +13,7 @@ RUN npm ci
 COPY . .
 
 # Build args for environment variables (baked in at build time)
-ARG VITE_API_URL=/api/v1
+ARG VITE_API_URL=https://api.ping-monitor.taylorcrib.com/api/v1
 ARG VITE_SITE_ID=home
 
 ENV VITE_API_URL=$VITE_API_URL

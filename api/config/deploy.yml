@@ -8,8 +8,8 @@ image: taylor01/ping_monitor_api
 servers:
   web:
     hosts:
-      - 100.123.212.53
-    proxy: false
+      - 129.212.186.167
+    #proxy: false
     labels:
       traefik.enable: true
       traefik.http.routers.ping-monitor-api.rule: Host(`api.ping-monitor.home.taylorcrib.com`)
@@ -17,18 +17,14 @@ servers:
       traefik.http.routers.ping-monitor-api.tls.certresolver: letsencrypt
       traefik.http.services.ping-monitor-api.loadbalancer.server.port: 3000
       com.datadoghq.ad.logs: '[{"source": "ruby", "service": "ping-monitor-api"}]'
-    options:
-      network: core_default
-      network-alias: ping-monitor-api
+
   job:
     hosts:
-      - 100.123.212.53
+      - 129.212.186.167
     cmd: bin/jobs
     proxy: false
     labels:
       com.datadoghq.ad.logs: '[{"source": "ruby", "service": "ping-monitor-api-job"}]'
-    options:
-      network: core_default
 
 # Enable SSL auto certification via Let's Encrypt and allow for multiple apps on a single web server.
 # If used with Cloudflare, set encryption mode in SSL/TLS setting to "Full" to enable CF-to-app encryption.
@@ -38,7 +34,9 @@ servers:
 # Don't use this when deploying to multiple web servers (then you have to terminate SSL at your load balancer).
 #
 # Traefik handles routing, so we skip kamal-proxy and publish directly via servers.options.publish
-
+proxy:
+  ssl: true
+  host: api.ping-monitor.taylorcrib.com
 # Where you keep your container images.
 registry:
   # Alternatives: docker.io / registry.digitalocean.com / ghcr.io / ...
@@ -104,7 +102,7 @@ builder:
 
 # Use a different ssh user than root
 ssh:
-  user: core
+  user: root
 
 # Use accessory services (secrets come from .kamal/secrets).
 # accessories:
