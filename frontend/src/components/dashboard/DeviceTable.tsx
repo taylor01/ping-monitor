@@ -162,9 +162,9 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex-shrink-0 flex items-center justify-between gap-4 mb-4">
         <h2 className="font-[var(--font-display)] text-xl font-semibold text-[var(--color-text-primary)] uppercase tracking-wide">
           Devices
         </h2>
@@ -183,7 +183,7 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-[auto_1fr_140px_100px_100px_100px_100px] gap-4 px-4 py-3 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
           <div className="w-6" /> {/* Status indicator */}
@@ -208,7 +208,7 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
         </div>
 
         {/* Table Body */}
-        <div>
+        <div className="flex-1 overflow-y-auto">
           {paginatedDevices.length === 0 ? (
             <div className="px-4 py-12 text-center text-[var(--color-text-muted)] font-[var(--font-mono)]">
               {search ? 'No devices match your search' : 'No devices found'}
@@ -300,7 +300,7 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
       </div>
 
       {/* Footer with pagination */}
-      <div className="flex items-center justify-between">
+      <div className="flex-shrink-0 flex items-center justify-between mt-4">
         <div className="text-xs text-[var(--color-text-muted)] font-[var(--font-mono)]">
           Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedDevices.length)} of {sortedDevices.length} devices
         </div>

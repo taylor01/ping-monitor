@@ -120,9 +120,9 @@ export function Dashboard({ siteName, onAuthError }: DashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-void)] grid-bg">
+    <div className="h-screen flex flex-col bg-[var(--color-void)] grid-bg overflow-hidden">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-[var(--color-panel)]/80 backdrop-blur-md border-b border-[var(--color-border)]">
+      <header className="flex-shrink-0 z-50 bg-[var(--color-panel)]/80 backdrop-blur-md border-b border-[var(--color-border)]">
         <div className="max-w-[1800px] mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             {/* Logo */}
@@ -183,31 +183,34 @@ export function Dashboard({ siteName, onAuthError }: DashboardProps) {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-[1800px] mx-auto px-6 py-6">
-        <div className="flex flex-col xl:flex-row gap-6">
-          {/* Left Column - Main content */}
-          <div className="flex-1 space-y-6">
-            <StatusOverview status={siteStatus} isRefetching={statusRefetching} />
-            <DeviceTable devices={siteStatus.devices} onDeviceClick={setSelectedDevice} />
-          </div>
+      {/* Main Content - fills available space */}
+      <main className="flex-1 min-h-0 overflow-hidden">
+        <div className="h-full max-w-[1800px] mx-auto px-6 py-6">
+          <div className="h-full flex flex-col xl:flex-row gap-6">
+            {/* Left Column - Main content */}
+            <div className="flex-1 flex flex-col gap-6 min-h-0">
+              <StatusOverview status={siteStatus} isRefetching={statusRefetching} />
+              <div className="flex-1 min-h-0">
+                <DeviceTable devices={siteStatus.devices} onDeviceClick={setSelectedDevice} />
+              </div>
+            </div>
 
-          {/* Right Column - Alerts sidebar */}
-          <div className="xl:w-[380px] xl:flex-shrink-0">
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
-              <AnomaliesPanel
-                anomalies={anomalies || []}
-                onResolve={handleResolve}
-                isLoading={anomaliesLoading}
-                maxHeight={520}
-              />
+            {/* Right Column - Alerts sidebar */}
+            <div className="xl:w-[380px] xl:flex-shrink-0 min-h-0">
+              <div className="h-full rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4 flex flex-col">
+                <AnomaliesPanel
+                  anomalies={anomalies || []}
+                  onResolve={handleResolve}
+                  isLoading={anomaliesLoading}
+                />
+              </div>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[var(--color-border)] bg-[var(--color-panel)]/50 mt-auto">
+      {/* Footer - sticky at bottom */}
+      <footer className="flex-shrink-0 border-t border-[var(--color-border)] bg-[var(--color-panel)]/50">
         <div className="max-w-[1800px] mx-auto px-6 py-3 flex items-center justify-between text-xs font-[var(--font-mono)] text-[var(--color-text-muted)]">
           <span>Network Monitoring Dashboard v1.0</span>
           <span>Auto-refresh: 10s</span>
