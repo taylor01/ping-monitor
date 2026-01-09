@@ -6,6 +6,7 @@ interface AnomaliesPanelProps {
   anomalies: Anomaly[]
   onResolve?: (id: string) => void
   isLoading?: boolean
+  maxHeight?: number
 }
 
 const severityConfig: Record<AnomalySeverity, { icon: React.ReactNode; color: string; bg: string; border: string }> = {
@@ -102,12 +103,12 @@ function AnomalyCard({ anomaly, onResolve, index }: { anomaly: Anomaly; onResolv
   )
 }
 
-export function AnomaliesPanel({ anomalies, onResolve, isLoading }: AnomaliesPanelProps) {
+export function AnomaliesPanel({ anomalies, onResolve, isLoading, maxHeight }: AnomaliesPanelProps) {
   const criticalCount = anomalies.filter(a => a.severity === 'critical').length
   const warningCount = anomalies.filter(a => a.severity === 'warning').length
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -132,7 +133,10 @@ export function AnomaliesPanel({ anomalies, onResolve, isLoading }: AnomaliesPan
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+      <div
+        className="flex-1 overflow-y-auto space-y-3 pr-1"
+        style={maxHeight ? { maxHeight: `${maxHeight}px` } : undefined}
+      >
         {isLoading ? (
           <div className="flex items-center justify-center py-12 text-[var(--color-text-muted)]">
             <div className="w-5 h-5 border-2 border-[var(--color-cyan)] border-t-transparent rounded-full animate-spin" />

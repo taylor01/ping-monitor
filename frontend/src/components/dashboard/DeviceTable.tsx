@@ -15,6 +15,8 @@ import {
   Globe,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Search
 } from 'lucide-react'
 import type { DeviceStatus, DeviceType } from '@/types/api'
@@ -27,6 +29,8 @@ interface DeviceTableProps {
 
 type SortKey = 'host' | 'ip' | 'status' | 'latency' | 'packetLoss'
 type SortDir = 'asc' | 'desc'
+
+const ITEMS_PER_PAGE = 10
 
 const deviceIcons: Record<DeviceType, React.ReactNode> = {
   router: <Router size={16} />,
@@ -50,6 +54,14 @@ function getStatusVariant(device: DeviceStatus): 'online' | 'warning' | 'offline
   if (device.latencyMs && device.latencyMs > 100) return 'warning'
   if (device.packetLoss && device.packetLoss > 0.05) return 'warning'
   return 'online'
+}
+
+function getStatusPriority(device: DeviceStatus): number {
+  // Lower number = higher priority (shown first)
+  if (!device.isUp) return 0 // Down devices first
+  if (device.latencyMs && device.latencyMs > 100) return 1 // Warning
+  if (device.packetLoss && device.packetLoss > 0.05) return 1 // Warning
+  return 2 // Online/healthy last
 }
 
 function StatusIndicator({ status }: { status: 'online' | 'warning' | 'offline' }) {
@@ -94,16 +106,19 @@ function SortButton({
 
 export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('status')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [sortDir, setSortDir] = useState<SortDir>('asc') // asc so down (priority 0) comes first
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     } else {
       setSortKey(key)
-      setSortDir('desc')
+      // Default direction based on column
+      setSortDir(key === 'status' ? 'asc' : 'desc')
     }
+    setCurrentPage(1) // Reset to first page on sort change
   }
 
   const filteredDevices = devices.filter(d =>
@@ -120,7 +135,8 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
       case 'ip':
         return mult * a.ip.localeCompare(b.ip)
       case 'status':
-        return mult * (Number(a.isUp) - Number(b.isUp))
+        // Sort by priority: down first, then warning, then online
+        return mult * (getStatusPriority(a) - getStatusPriority(b))
       case 'latency':
         return mult * ((a.latencyMs ?? 999999) - (b.latencyMs ?? 999999))
       case 'packetLoss':
@@ -129,6 +145,21 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
         return 0
     }
   })
+
+  // Pagination
+  const totalPages = Math.ceil(sortedDevices.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedDevices = sortedDevices.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+  }
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    setCurrentPage(1)
+  }
 
   return (
     <div className="space-y-4">
@@ -145,7 +176,7 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
             type="text"
             placeholder="Search devices..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-64 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md py-2 pl-10 pr-4 text-sm font-[var(--font-mono)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-cyan)] focus:ring-1 focus:ring-[var(--color-cyan)]/20 transition-colors"
           />
         </div>
@@ -177,13 +208,13 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
         </div>
 
         {/* Table Body */}
-        <div className="max-h-[500px] overflow-y-auto">
-          {sortedDevices.length === 0 ? (
+        <div>
+          {paginatedDevices.length === 0 ? (
             <div className="px-4 py-12 text-center text-[var(--color-text-muted)] font-[var(--font-mono)]">
               {search ? 'No devices match your search' : 'No devices found'}
             </div>
           ) : (
-            sortedDevices.map((device, index) => {
+            paginatedDevices.map((device, index) => {
               const status = getStatusVariant(device)
               return (
                 <div
@@ -268,9 +299,56 @@ export function DeviceTable({ devices, onDeviceClick }: DeviceTableProps) {
         </div>
       </div>
 
-      {/* Footer count */}
-      <div className="text-xs text-[var(--color-text-muted)] font-[var(--font-mono)]">
-        Showing {sortedDevices.length} of {devices.length} devices
+      {/* Footer with pagination */}
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-[var(--color-text-muted)] font-[var(--font-mono)]">
+          Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedDevices.length)} of {sortedDevices.length} devices
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                currentPage === 1
+                  ? 'text-[var(--color-text-muted)] cursor-not-allowed'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)] hover:text-[var(--color-cyan)]'
+              )}
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => handlePageChange(page)}
+                className={cn(
+                  'min-w-[32px] h-8 px-2 rounded-md text-xs font-[var(--font-mono)] transition-colors',
+                  page === currentPage
+                    ? 'bg-[var(--color-cyan)]/20 text-[var(--color-cyan)] border border-[var(--color-cyan)]/30'
+                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)]'
+                )}
+              >
+                {page}
+              </button>
+            ))}
+
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                currentPage === totalPages
+                  ? 'text-[var(--color-text-muted)] cursor-not-allowed'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)] hover:text-[var(--color-cyan)]'
+              )}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -185,20 +185,21 @@ export function Dashboard({ siteName, onAuthError }: DashboardProps) {
 
       {/* Main Content */}
       <main className="max-w-[1800px] mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
+        <div className="flex flex-col xl:flex-row gap-6">
           {/* Left Column - Main content */}
-          <div className="space-y-6">
+          <div className="flex-1 space-y-6">
             <StatusOverview status={siteStatus} isRefetching={statusRefetching} />
             <DeviceTable devices={siteStatus.devices} onDeviceClick={setSelectedDevice} />
           </div>
 
           {/* Right Column - Alerts sidebar */}
-          <div className="xl:sticky xl:top-24 xl:h-[calc(100vh-8rem)]">
-            <div className="h-full rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+          <div className="xl:w-[380px] xl:flex-shrink-0">
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
               <AnomaliesPanel
                 anomalies={anomalies || []}
                 onResolve={handleResolve}
                 isLoading={anomaliesLoading}
+                maxHeight={520}
               />
             </div>
           </div>
