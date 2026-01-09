@@ -1,0 +1,257 @@
+/* Industrial Command Center Theme - Font imports must be first */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  /* Typography */
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'Rajdhani', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  /* Status Colors (shared between themes) */
+  --color-terminal: #00c77d;
+  --color-terminal-dim: #00a066;
+  --color-amber: #e6a000;
+  --color-amber-dim: #cc8f00;
+  --color-alert: #e53e3e;
+  --color-alert-dim: #c53030;
+  --color-cyan: #0ea5e9;
+  --color-cyan-dim: #0284c7;
+}
+
+/* Dark Theme (default) */
+:root,
+[data-theme="dark"] {
+  --color-void: #0a0c10;
+  --color-panel: #0d1117;
+  --color-surface: #161b22;
+  --color-border: #21262d;
+  --color-border-bright: #30363d;
+
+  --color-terminal-glow: rgba(0, 199, 125, 0.4);
+  --color-amber-glow: rgba(230, 160, 0, 0.4);
+  --color-alert-glow: rgba(229, 62, 62, 0.4);
+  --color-cyan-glow: rgba(14, 165, 233, 0.3);
+
+  --color-text-primary: #e6edf3;
+  --color-text-secondary: #8b949e;
+  --color-text-muted: #484f58;
+
+  color-scheme: dark;
+}
+
+/* Light Theme */
+[data-theme="light"] {
+  --color-void: #f8fafc;
+  --color-panel: #ffffff;
+  --color-surface: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-bright: #cbd5e1;
+
+  --color-terminal-glow: rgba(0, 199, 125, 0.2);
+  --color-amber-glow: rgba(230, 160, 0, 0.2);
+  --color-alert-glow: rgba(229, 62, 62, 0.2);
+  --color-cyan-glow: rgba(14, 165, 233, 0.2);
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+
+  color-scheme: light;
+}
+
+/* Base Styles */
+:root {
+  font-family: var(--font-body);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-void);
+  color: var(--color-text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Subtle scan line effect (dark mode only) */
+[data-theme="dark"] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Grid background pattern */
+.grid-bg {
+  background-image:
+    linear-gradient(var(--color-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: -1px -1px;
+}
+
+[data-theme="light"] .grid-bg {
+  background-image:
+    linear-gradient(rgba(226, 232, 240, 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 232, 240, 0.5) 1px, transparent 1px);
+}
+
+/* Glow effects */
+.glow-terminal {
+  box-shadow: 0 0 20px var(--color-terminal-glow), inset 0 0 20px rgba(0, 199, 125, 0.05);
+}
+
+.glow-amber {
+  box-shadow: 0 0 20px var(--color-amber-glow), inset 0 0 20px rgba(230, 160, 0, 0.05);
+}
+
+.glow-alert {
+  box-shadow: 0 0 20px var(--color-alert-glow), inset 0 0 20px rgba(229, 62, 62, 0.05);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 15px var(--color-cyan-glow);
+}
+
+/* Light mode: softer glows */
+[data-theme="light"] .glow-terminal,
+[data-theme="light"] .glow-amber,
+[data-theme="light"] .glow-alert,
+[data-theme="light"] .glow-cyan {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Status indicator pulse animation */
+@keyframes pulse-terminal {
+  0%, 100% { box-shadow: 0 0 4px var(--color-terminal), 0 0 8px var(--color-terminal-glow); }
+  50% { box-shadow: 0 0 8px var(--color-terminal), 0 0 16px var(--color-terminal-glow); }
+}
+
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 4px var(--color-amber), 0 0 8px var(--color-amber-glow); }
+  50% { box-shadow: 0 0 8px var(--color-amber), 0 0 16px var(--color-amber-glow); }
+}
+
+@keyframes pulse-alert {
+  0%, 100% { box-shadow: 0 0 4px var(--color-alert), 0 0 8px var(--color-alert-glow); }
+  50% { box-shadow: 0 0 8px var(--color-alert), 0 0 16px var(--color-alert-glow); }
+}
+
+.pulse-terminal { animation: pulse-terminal 2s ease-in-out infinite; }
+.pulse-amber { animation: pulse-amber 1.5s ease-in-out infinite; }
+.pulse-alert { animation: pulse-alert 1s ease-in-out infinite; }
+
+/* Light mode: subtle pulses */
+[data-theme="light"] .pulse-terminal,
+[data-theme="light"] .pulse-amber,
+[data-theme="light"] .pulse-alert {
+  animation: none;
+}
+
+/* Stagger animations */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+/* Data refresh indicator */
+@keyframes data-pulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+.data-updating {
+  animation: data-pulse 1s ease-in-out infinite;
+}
+
+/* Custom scrollbar - Dark theme */
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--color-panel);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--color-border-bright);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Custom scrollbar - Light theme */
+[data-theme="light"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--color-border-bright);
+  border-radius: 4px;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* Light mode card shadows */
+[data-theme="light"] .rounded-lg {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* Smooth transitions for theme switching */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+}
+
+/* Disable transitions for animations */
+.animate-fade-in-up,
+.animate-fade-in,
+.pulse-terminal,
+.pulse-amber,
+.pulse-alert,
+.data-updating {
+  transition: none;
+}
