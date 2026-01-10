@@ -34,9 +34,10 @@ servers:
 # Don't use this when deploying to multiple web servers (then you have to terminate SSL at your load balancer).
 #
 # Traefik handles routing, so we skip kamal-proxy and publish directly via servers.options.publish
-proxy:
-  ssl: true
-  host: api.ping-monitor.taylorcrib.com
+# proxy:
+#   ssl: true
+#   host: api.ping-monitor.taylorcrib.com
+proxy: false
 # Where you keep your container images.
 registry:
   # Alternatives: docker.io / registry.digitalocean.com / ghcr.io / ...
