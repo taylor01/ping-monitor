@@ -41,6 +41,15 @@ spec:
       labels:
         app: noc-claude
     spec:
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /app/data"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
       containers:
         - name: noc-claude
           image: taylor01/noc-claude:latest
