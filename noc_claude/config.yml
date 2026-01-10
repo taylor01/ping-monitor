@@ -47,3 +47,7 @@ database_path: "data/nc.db"
 
 # Claude model to use
 claude_model: "claude-sonnet-4-20250514"
+
+# Tool settings
+# Set to true when running in cloud without local network access
+disable_network_tools: ${NC_DISABLE_NETWORK_TOOLS:-false}

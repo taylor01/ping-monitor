@@ -52,6 +52,9 @@ class Config:
     
     # Claude
     claude_model: str = "claude-sonnet-4-20250514"
+
+    # Tool settings
+    disable_network_tools: bool = False
     
     @classmethod
     def load(cls, path: str) -> "Config":
@@ -97,16 +100,22 @@ class Config:
             pattern_confidence_threshold=thresholds.get('pattern_confidence_threshold', 0.7),
             sites=sites,
             database_path=raw.get('database_path', 'data/nc.db'),
-            claude_model=raw.get('claude_model', 'claude-sonnet-4-20250514')
+            claude_model=raw.get('claude_model', 'claude-sonnet-4-20250514'),
+            disable_network_tools=str(raw.get('disable_network_tools', 'false')).lower() == 'true'
         )
         
     @classmethod
     def _substitute_env_vars(cls, obj):
-        """Recursively substitute ${VAR} patterns with environment variables."""
+        """Recursively substitute ${VAR} or ${VAR:-default} patterns with environment variables."""
         if isinstance(obj, str):
             if obj.startswith('${') and obj.endswith('}'):
-                var_name = obj[2:-1]
-                return os.environ.get(var_name, '')
+                var_expr = obj[2:-1]
+                # Handle ${VAR:-default} syntax
+                if ':-' in var_expr:
+                    var_name, default = var_expr.split(':-', 1)
+                    return os.environ.get(var_name, default)
+                else:
+                    return os.environ.get(var_expr, '')
             return obj
         elif isinstance(obj, dict):
             return {k: cls._substitute_env_vars(v) for k, v in obj.items()}

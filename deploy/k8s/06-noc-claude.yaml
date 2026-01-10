@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: noc-claude-secrets
+  namespace: ping-monitor
+type: Opaque
+stringData:
+  ANTHROPIC_API_KEY: "op://Private/ping_monitor_deployment/ANTHROPIC_API_KEY"
+  NC_AGENT_NAME: "op://Private/ping_monitor_deployment/NC_AGENT_NAME"
+  NC_AGENT_SECRET: "op://Private/ping_monitor_deployment/NC_AGENT_SECRET"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: noc-claude-data
+  namespace: ping-monitor
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: noc-claude
+  namespace: ping-monitor
+  labels:
+    app: noc-claude
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # SQLite - single writer
+  selector:
+    matchLabels:
+      app: noc-claude
+  template:
+    metadata:
+      labels:
+        app: noc-claude
+    spec:
+      containers:
+        - name: noc-claude
+          image: taylor01/noc-claude:latest
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: noc-claude-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: RAILS_API_URL
+              value: "https://api.ping-monitor.taylorcrib.com"
+            - name: NC_AGENT_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: noc-claude-secrets
+                  key: NC_AGENT_NAME
+            - name: NC_AGENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: noc-claude-secrets
+                  key: NC_AGENT_SECRET
+            - name: TZ
+              value: "America/New_York"
+            - name: NC_DISABLE_NETWORK_TOOLS
+              value: "true"  # Cloud deployment - no local network access
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: noc-claude-data

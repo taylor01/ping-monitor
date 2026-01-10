@@ -305,13 +305,23 @@ class InvestigationResult:
             self.devices_affected = []
 
 
+NETWORK_TOOLS = {"ping_device", "check_tailscale_status"}
+
+
 class ClaudeClient:
     """Wrapper for Claude API interactions."""
-    
+
     def __init__(self, config, tools):
         self.client = Anthropic()
         self.model = config.claude_model
         self.tools = tools  # ToolExecutor instance
+        self.disable_network_tools = config.disable_network_tools
+
+    def _get_available_tools(self):
+        """Get tools list, optionally filtering network tools."""
+        if self.disable_network_tools:
+            return [t for t in NC_TOOLS if t["name"] not in NETWORK_TOOLS]
+        return NC_TOOLS
         
     def investigate(self, site: str, context: SiteContext) -> InvestigationResult:
         """Have Claude investigate a site's current state."""
@@ -334,7 +344,7 @@ Remember to end with a clear DECISION block."""
                 model=self.model,
                 max_tokens=4096,
                 system=NC_SYSTEM_PROMPT,
-                tools=NC_TOOLS,
+                tools=self._get_available_tools(),
                 messages=messages
             )
             
