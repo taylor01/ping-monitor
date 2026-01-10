@@ -75,6 +75,10 @@ secrets/
 *.key
 *.crt
 
+# Kubernetes
+*-kubeconfig.yaml
+*-kubeconfig*.yaml
+
 # OS
 .DS_Store
 Thumbs.db

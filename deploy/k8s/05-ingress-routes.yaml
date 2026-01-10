@@ -1,0 +1,55 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ping-monitor-api
+  namespace: ping-monitor
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`api.ping-monitor.taylorcrib.com`)
+      kind: Rule
+      services:
+        - name: ping-monitor-api
+          port: 3000
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ping-monitor-frontend
+  namespace: ping-monitor
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`app.ping-monitor.taylorcrib.com`)
+      kind: Rule
+      services:
+        - name: ping-monitor-frontend
+          port: 80
+  tls:
+    certResolver: letsencrypt
+---
+# Optional: CORS middleware if needed for API
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-headers
+  namespace: ping-monitor
+spec:
+  headers:
+    accessControlAllowMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+    accessControlAllowHeaders:
+      - "Authorization"
+      - "Content-Type"
+    accessControlAllowOriginList:
+      - "https://app.ping-monitor.taylorcrib.com"
+    accessControlMaxAge: 100
+    addVaryHeader: true

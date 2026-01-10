@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ping-monitor-db
+  namespace: ping-monitor
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ping-monitor-api
+  namespace: ping-monitor
+  labels:
+    app: ping-monitor-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ping-monitor-api
+  strategy:
+    type: Recreate  # Required for SQLite - can't have two pods accessing the same volume
+  template:
+    metadata:
+      labels:
+        app: ping-monitor-api
+    spec:
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /rails/storage"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: db-storage
+              mountPath: /rails/storage
+      containers:
+        - name: api
+          image: taylor01/ping_monitor_api:latest
+          ports:
+            - containerPort: 3000
+          command: ["./bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]
+          env:
+            - name: RAILS_ENV
+              value: "production"
+            - name: RAILS_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: RAILS_MASTER_KEY
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: JWT_SECRET_KEY
+          volumeMounts:
+            - name: db-storage
+              mountPath: /rails/storage
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: ping-monitor-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ping-monitor-api
+  namespace: ping-monitor
+spec:
+  selector:
+    app: ping-monitor-api
+  ports:
+    - port: 3000
+      targetPort: 3000
