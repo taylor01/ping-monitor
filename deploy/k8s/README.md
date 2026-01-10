@@ -10,16 +10,21 @@
 
 ## Deployment Steps
 
-### 1. Update configuration
+### 1. Deploy secrets from 1Password
 
-Edit the following files before deploying:
+Secrets are stored in 1Password and injected at deploy time using the `op` CLI:
 
-**00-namespace-secrets.yaml:**
-- Replace `your-rails-master-key-here` with your actual RAILS_MASTER_KEY
-- Replace `your-jwt-secret-key-here` with your actual JWT_SECRET_KEY
+```bash
+# Make sure you're signed in to 1Password CLI
+op signin
 
-**01-traefik.yaml:**
-- Replace `your-email@example.com` with your email for Let's Encrypt notifications
+# Apply secrets (substitutes 1Password references with actual values)
+op inject -i 00-namespace-secrets.yaml | kubectl apply -f -
+```
+
+The secrets are stored in: `op://Private/ping_monitor_deployment/`
+- `RAILS_MASTER_KEY`
+- `JWT_SECRET_KEY`
 
 ### 2. Deploy in order
 
