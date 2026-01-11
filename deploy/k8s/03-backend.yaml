@@ -41,7 +41,7 @@ spec:
               mountPath: /rails/storage
         - name: migrate
           image: taylor01/ping_monitor_api:latest
-          command: ["./bin/rails", "db:migrate"]
+          command: ["./bin/rails", "db:prepare"]
           env:
             - name: RAILS_ENV
               value: "production"
@@ -55,6 +55,21 @@ spec:
                 secretKeyRef:
                   name: ping-monitor-api-secrets
                   key: DATABASE_URL
+            - name: CACHE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: CACHE_DATABASE_URL
+            - name: QUEUE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: QUEUE_DATABASE_URL
+            - name: CABLE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: CABLE_DATABASE_URL
           volumeMounts:
             - name: db-storage
               mountPath: /rails/storage
@@ -82,6 +97,21 @@ spec:
                 secretKeyRef:
                   name: ping-monitor-api-secrets
                   key: DATABASE_URL
+            - name: CACHE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: CACHE_DATABASE_URL
+            - name: QUEUE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: QUEUE_DATABASE_URL
+            - name: CABLE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: CABLE_DATABASE_URL
           volumeMounts:
             - name: db-storage
               mountPath: /rails/storage
