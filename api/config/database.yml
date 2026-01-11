@@ -26,21 +26,21 @@ test:
   database: storage/test.sqlite3
 
 
-# Store production database in the storage/ directory, which by default
-# is mounted as a persistent Docker volume in config/deploy.yml.
+# Production uses PostgreSQL via DATABASE_URL
+# Database name is specified in the URL: postgresql://user:pass@host:port/ping_monitor_production
+# All solid_* adapters share the same database (separate tables)
 production:
-  primary:
-    <<: *default
-    database: storage/production.sqlite3
+  primary: &production_default
+    adapter: postgresql
+    encoding: unicode
+    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+    url: <%= ENV["DATABASE_URL"] %>
   cache:
-    <<: *default
-    database: storage/production_cache.sqlite3
+    <<: *production_default
     migrations_paths: db/cache_migrate
   queue:
-    <<: *default
-    database: storage/production_queue.sqlite3
+    <<: *production_default
     migrations_paths: db/queue_migrate
   cable:
-    <<: *default
-    database: storage/production_cable.sqlite3
+    <<: *production_default
     migrations_paths: db/cable_migrate
