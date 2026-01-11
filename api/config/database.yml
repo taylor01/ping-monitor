@@ -27,6 +27,7 @@ test:
 
 
 # Production uses PostgreSQL via DATABASE_URL
+# Database name is specified in the URL: postgresql://user:pass@host:port/ping_monitor_production
 # All solid_* adapters share the same database (separate tables)
 production:
   primary: &production_default
@@ -34,7 +35,6 @@ production:
     encoding: unicode
     pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
     url: <%= ENV["DATABASE_URL"] %>
-    database: ping_monitor_production
   cache:
     <<: *production_default
     migrations_paths: db/cache_migrate
