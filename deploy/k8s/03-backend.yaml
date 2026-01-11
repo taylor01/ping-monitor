@@ -6,7 +6,7 @@ metadata:
   labels:
     app: ping-monitor-api
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: ping-monitor-api
