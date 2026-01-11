@@ -1,16 +1,3 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: ping-monitor-db
-  namespace: ping-monitor
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: do-block-storage
-  resources:
-    requests:
-      storage: 5Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,21 +11,13 @@ spec:
     matchLabels:
       app: ping-monitor-api
   strategy:
-    type: Recreate  # Single replica for migrations; can switch to RollingUpdate with Postgres + migration Job
+    type: RollingUpdate  # Safe with Postgres - no local storage dependency
   template:
     metadata:
       labels:
         app: ping-monitor-api
     spec:
       initContainers:
-        - name: fix-permissions
-          image: busybox
-          command: ["sh", "-c", "chown -R 1000:1000 /rails/storage"]
-          securityContext:
-            runAsUser: 0
-          volumeMounts:
-            - name: db-storage
-              mountPath: /rails/storage
         - name: migrate
           image: taylor01/ping_monitor_api:latest
           command: ["./bin/rails", "db:prepare"]
@@ -70,9 +49,6 @@ spec:
                 secretKeyRef:
                   name: ping-monitor-api-secrets
                   key: CABLE_DATABASE_URL
-          volumeMounts:
-            - name: db-storage
-              mountPath: /rails/storage
       containers:
         - name: api
           image: taylor01/ping_monitor_api:latest
@@ -112,9 +88,6 @@ spec:
                 secretKeyRef:
                   name: ping-monitor-api-secrets
                   key: CABLE_DATABASE_URL
-          volumeMounts:
-            - name: db-storage
-              mountPath: /rails/storage
           resources:
             requests:
               memory: "256Mi"
@@ -134,10 +107,6 @@ spec:
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 5
-      volumes:
-        - name: db-storage
-          persistentVolumeClaim:
-            claimName: ping-monitor-db
 ---
 apiVersion: v1
 kind: Service
