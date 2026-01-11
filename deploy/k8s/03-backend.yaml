@@ -39,6 +39,20 @@ spec:
           volumeMounts:
             - name: db-storage
               mountPath: /rails/storage
+        - name: migrate
+          image: taylor01/ping_monitor_api:latest
+          command: ["./bin/rails", "db:migrate"]
+          env:
+            - name: RAILS_ENV
+              value: "production"
+            - name: RAILS_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: RAILS_MASTER_KEY
+          volumeMounts:
+            - name: db-storage
+              mountPath: /rails/storage
       containers:
         - name: api
           image: taylor01/ping_monitor_api:latest
