@@ -11,6 +11,9 @@ Wants=network-online.target
 Image=docker.io/taylor01/ping-monitor:latest
 ContainerName=ping-monitor
 
+# Use host network for access to local LAN devices
+Network=host
+
 # Environment variables
 Environment=SITE_NAME=home
 Environment=RAILS_API_URL=https://api.ping-monitor.taylorcrib.com
