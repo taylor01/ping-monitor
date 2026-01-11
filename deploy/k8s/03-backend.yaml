@@ -24,7 +24,7 @@ spec:
     matchLabels:
       app: ping-monitor-api
   strategy:
-    type: Recreate  # Required for SQLite - can't have two pods accessing the same volume
+    type: Recreate  # Single replica for migrations; can switch to RollingUpdate with Postgres + migration Job
   template:
     metadata:
       labels:
@@ -50,6 +50,11 @@ spec:
                 secretKeyRef:
                   name: ping-monitor-api-secrets
                   key: RAILS_MASTER_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: DATABASE_URL
           volumeMounts:
             - name: db-storage
               mountPath: /rails/storage
@@ -72,6 +77,11 @@ spec:
                 secretKeyRef:
                   name: ping-monitor-api-secrets
                   key: JWT_SECRET_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: DATABASE_URL
           volumeMounts:
             - name: db-storage
               mountPath: /rails/storage
