@@ -1,0 +1,43 @@
+# Quadlet container file for ping-monitor
+# Place in /etc/containers/systemd/ on CoreOS
+# Then run: systemctl daemon-reload && systemctl start ping-monitor
+
+[Unit]
+Description=Ping Monitor - Network device monitoring
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/taylor01/ping-monitor:latest
+ContainerName=ping-monitor
+
+# Environment variables
+Environment=SITE_NAME=home
+Environment=RAILS_API_URL=https://api.ping-monitor.taylorcrib.com
+Environment=PING_INTERVAL=60
+Environment=PING_COUNT=3
+Environment=PING_TIMEOUT=2
+Environment=MAX_WORKERS=20
+
+# Secret loaded from file (create this file with your site secret)
+Secret=ping-monitor-secret,type=env,target=SITE_SECRET
+
+# Mount hosts.json config
+Volume=/etc/ping-monitor/hosts.json:/config/hosts.json:ro,z
+
+# Persistent buffer for measurements
+Volume=ping-monitor-buffer:/data:z
+
+# Required for ICMP ping
+AddCapability=NET_RAW
+
+# Auto-update support
+AutoUpdate=registry
+Label=io.containers.autoupdate=registry
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target default.target
