@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, RefreshCw, LogOut } from 'lucide-react'
+import { Activity, RefreshCw, LogOut, ArrowLeft } from 'lucide-react'
 import { useSiteByName } from '@/hooks/useSites'
 import { useSiteStatus } from '@/hooks/useSiteStatus'
 import { useAnomalies, useResolveAnomaly } from '@/hooks/useAnomalies'
@@ -15,9 +15,10 @@ import type { DeviceStatus } from '@/types/api'
 interface DashboardProps {
   siteName: string
   onAuthError?: () => void
+  onBack?: () => void
 }
 
-export function Dashboard({ siteName, onAuthError }: DashboardProps) {
+export function Dashboard({ siteName, onAuthError, onBack }: DashboardProps) {
   const [selectedDevice, setSelectedDevice] = useState<DeviceStatus | null>(null)
 
   // First resolve the site name to a numeric ID
@@ -125,6 +126,22 @@ export function Dashboard({ siteName, onAuthError }: DashboardProps) {
       <header className="flex-shrink-0 z-50 bg-[var(--color-panel)]/80 backdrop-blur-md border-b border-[var(--color-border)]">
         <div className="max-w-[1800px] mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
+            {/* Back Button */}
+            {onBack && (
+              <button
+                onClick={onBack}
+                className={cn(
+                  'flex items-center justify-center w-10 h-10 rounded-lg transition-all',
+                  'border border-[var(--color-border)] hover:border-[var(--color-cyan)]/50',
+                  'bg-[var(--color-surface)] hover:bg-[var(--color-cyan)]/10',
+                  'text-[var(--color-text-secondary)] hover:text-[var(--color-cyan)]'
+                )}
+                title="Back to Sites"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            )}
+
             {/* Logo */}
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-[var(--color-cyan)]/10 border border-[var(--color-cyan)]/30">
@@ -132,7 +149,7 @@ export function Dashboard({ siteName, onAuthError }: DashboardProps) {
               </div>
               <div>
                 <h1 className="font-[var(--font-display)] text-lg font-bold text-[var(--color-text-primary)] uppercase tracking-wider">
-                  NetMon
+                  {siteName}
                 </h1>
                 <p className="font-[var(--font-mono)] text-xs text-[var(--color-text-muted)]">
                   Network Operations Center
