@@ -13,8 +13,15 @@ class InferredTopology < ApplicationRecord
 
   # Record or update a topology inference
   def self.record!(site:, upstream_device:, downstream_devices:)
+    # Batch load all existing records to avoid N+1 queries
+    existing = where(
+      site: site,
+      upstream_device: upstream_device,
+      downstream_device: downstream_devices
+    ).index_by(&:downstream_device)
+
     downstream_devices.each do |downstream|
-      topology = find_or_initialize_by(
+      topology = existing[downstream] || new(
         site: site,
         upstream_device: upstream_device,
         downstream_device: downstream
