@@ -226,6 +226,7 @@ class StateManager:
                     site TEXT PRIMARY KEY,
                     concern_level TEXT DEFAULT 'NORMAL',
                     watching_since TIMESTAMP,
+                    active_incident_id INTEGER,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 
@@ -248,7 +249,13 @@ class StateManager:
                 CREATE INDEX IF NOT EXISTS idx_patterns_site ON learned_patterns(site);
                 CREATE INDEX IF NOT EXISTS idx_alerts_site ON active_alerts(site);
             """)
-            
+
+            # Migration: add active_incident_id column if it doesn't exist
+            columns = conn.execute("PRAGMA table_info(site_states)").fetchall()
+            column_names = [col['name'] for col in columns]
+            if 'active_incident_id' not in column_names:
+                conn.execute("ALTER TABLE site_states ADD COLUMN active_incident_id INTEGER")
+
     # =========================================================================
     # Alert Management
     # =========================================================================
@@ -398,6 +405,32 @@ class StateManager:
                     WHERE site = ?
                 """, (level, site))
                 
+    def set_active_incident_id(self, site: str, incident_id: int):
+        """Store the active incident ID for a site (from Rails API)."""
+        with self._get_conn() as conn:
+            conn.execute("""
+                UPDATE site_states SET active_incident_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE site = ?
+            """, (incident_id, site))
+
+    def get_active_incident_id(self, site: str) -> Optional[int]:
+        """Get the active incident ID for a site."""
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT active_incident_id FROM site_states WHERE site = ?", (site,)
+            ).fetchone()
+        if row and row['active_incident_id']:
+            return int(row['active_incident_id'])
+        return None
+
+    def clear_active_incident_id(self, site: str):
+        """Clear the active incident ID for a site."""
+        with self._get_conn() as conn:
+            conn.execute("""
+                UPDATE site_states SET active_incident_id = NULL, updated_at = CURRENT_TIMESTAMP
+                WHERE site = ?
+            """, (site,))
+
     def get_watching_sites(self) -> List[str]:
         """Get sites in WATCHING state."""
         with self._get_conn() as conn:

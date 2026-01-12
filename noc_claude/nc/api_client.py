@@ -537,6 +537,256 @@ class RailsAPIClient:
         return anomalies
 
     # =========================================================================
+    # Incident Endpoints
+    # =========================================================================
+
+    def create_incident(self, site: str, devices_affected: List[str],
+                       severity: str = "normal", nc_root_cause_guess: str = None) -> Dict:
+        """
+        Create a new incident when NC escalates.
+
+        Args:
+            site: Site name
+            devices_affected: List of device names involved
+            severity: 'normal' or 'major'
+            nc_root_cause_guess: NC's initial guess at root cause
+
+        Returns:
+            Created incident data
+        """
+        data = {
+            'site_name': site,
+            'devices_affected': devices_affected,
+            'severity': severity,
+            'started_at': datetime.now(timezone.utc).isoformat()
+        }
+        if nc_root_cause_guess:
+            data['nc_root_cause_guess'] = nc_root_cause_guess
+
+        response = self._post("/api/v1/incidents", data)
+        return self._parse_incident(response.get('data', {}))
+
+    def resolve_incident(self, incident_id: int, auto_recovered: bool = False,
+                        nc_summary: str = None) -> Dict:
+        """
+        Mark an incident as resolved.
+
+        Args:
+            incident_id: The incident ID
+            auto_recovered: Whether it recovered automatically
+            nc_summary: NC's summary of what happened
+
+        Returns:
+            Updated incident data
+        """
+        data = {'auto_recovered': auto_recovered}
+        if nc_summary:
+            data['nc_summary'] = nc_summary
+
+        response = self._patch(f"/api/v1/incidents/{incident_id}/resolve", data)
+        return self._parse_incident(response.get('data', {}))
+
+    def update_incident(self, incident_id: int, **kwargs) -> Dict:
+        """
+        Update incident fields.
+
+        Args:
+            incident_id: The incident ID
+            **kwargs: Fields to update (nc_summary, nc_root_cause_guess, devices_affected)
+
+        Returns:
+            Updated incident data
+        """
+        response = self._patch(f"/api/v1/incidents/{incident_id}", kwargs)
+        return self._parse_incident(response.get('data', {}))
+
+    def get_incidents(self, status: str = None, not_reported: bool = False,
+                     since: datetime = None) -> List[Dict]:
+        """
+        Get incidents.
+
+        Args:
+            status: 'active', 'resolved', 'pending_review', or None for all
+            not_reported: Only incidents not yet in morning summary
+            since: Only incidents updated since this time
+
+        Returns:
+            List of incident dicts
+        """
+        params = {}
+        if status:
+            params['status'] = status
+        if not_reported:
+            params['not_reported'] = 'true'
+        if since:
+            params['since'] = since.isoformat()
+
+        response = self._get("/api/v1/incidents", params)
+
+        incidents = []
+        for item in response.get('data', []):
+            incidents.append(self._parse_incident(item))
+        return incidents
+
+    def get_incident(self, incident_id: int) -> Optional[Dict]:
+        """Get a single incident by ID."""
+        try:
+            response = self._get(f"/api/v1/incidents/{incident_id}")
+            return self._parse_incident(response.get('data', {}))
+        except Exception:
+            return None
+
+    def mark_incident_reported(self, incident_id: int) -> Dict:
+        """Mark an incident as reported in morning summary."""
+        response = self._patch(f"/api/v1/incidents/{incident_id}/mark_reported", {})
+        return self._parse_incident(response.get('data', {}))
+
+    def _parse_incident(self, item: Dict) -> Dict:
+        """Parse JSON:API incident into flat dict."""
+        attrs = item.get('attributes', {})
+        return {
+            'id': item.get('id'),
+            'site_id': attrs.get('site_id'),
+            'started_at': attrs.get('started_at'),
+            'resolved_at': attrs.get('resolved_at'),
+            'auto_recovered': attrs.get('auto_recovered', False),
+            'nc_summary': attrs.get('nc_summary'),
+            'nc_root_cause_guess': attrs.get('nc_root_cause_guess'),
+            'devices_affected': attrs.get('devices_affected', []),
+            'human_root_cause': attrs.get('human_root_cause'),
+            'human_notes': attrs.get('human_notes'),
+            'human_reviewed_at': attrs.get('human_reviewed_at'),
+            'severity': attrs.get('severity', 'normal'),
+            'reported_in_summary': attrs.get('reported_in_summary', False),
+            'active': attrs.get('active', True),
+            'pending_review': attrs.get('pending_review', False),
+            'duration_seconds': attrs.get('duration_seconds')
+        }
+
+    # =========================================================================
+    # Learned Patterns Endpoints
+    # =========================================================================
+
+    def get_learned_patterns(self, site: str, device: str = None,
+                            confident_only: bool = True) -> List[Dict]:
+        """
+        Get learned patterns for a site/device.
+
+        Args:
+            site: Site name
+            device: Optional device name filter
+            confident_only: Only return patterns with confidence >= 0.7
+
+        Returns:
+            List of pattern dicts
+        """
+        params = {'site_name': site}
+        if device:
+            params['device'] = device
+        if confident_only:
+            params['confident'] = 'true'
+
+        response = self._get("/api/v1/learned_patterns", params)
+
+        patterns = []
+        for item in response.get('data', []):
+            patterns.append(self._parse_pattern(item))
+        return patterns
+
+    def record_pattern(self, site: str, pattern_type: str, description: str,
+                      device: str = None, time_pattern: str = None) -> Dict:
+        """
+        Record a learned pattern.
+
+        Args:
+            site: Site name
+            pattern_type: One of: scheduled_downtime, cascade_source, flaky, normal_reboot, weather_sensitive
+            description: Human readable description
+            device: Optional device name (None for site-wide)
+            time_pattern: Optional time pattern (e.g., "03:00-03:30")
+
+        Returns:
+            Created/updated pattern data
+        """
+        data = {
+            'site_name': site,
+            'pattern_type': pattern_type,
+            'description': description
+        }
+        if device:
+            data['device'] = device
+        if time_pattern:
+            data['time_pattern'] = time_pattern
+
+        response = self._post("/api/v1/learned_patterns", data)
+        return self._parse_pattern(response.get('data', {}))
+
+    def _parse_pattern(self, item: Dict) -> Dict:
+        """Parse JSON:API pattern into flat dict."""
+        attrs = item.get('attributes', {})
+        return {
+            'id': item.get('id'),
+            'device': attrs.get('device'),
+            'pattern_type': attrs.get('pattern_type'),
+            'description': attrs.get('description'),
+            'confidence': attrs.get('confidence', 0.5),
+            'occurrences': attrs.get('occurrences', 1),
+            'time_pattern': attrs.get('time_pattern'),
+            'last_seen_at': attrs.get('last_seen_at'),
+            'site_wide': attrs.get('site_wide', False)
+        }
+
+    # =========================================================================
+    # Inferred Topology Endpoints
+    # =========================================================================
+
+    def get_topology(self, site: str) -> Dict[str, List[str]]:
+        """
+        Get inferred topology for a site as a hash.
+
+        Args:
+            site: Site name
+
+        Returns:
+            Dict mapping upstream_device -> [downstream_device, ...]
+        """
+        params = {'site_name': site, 'format': 'hash'}
+        response = self._get("/api/v1/inferred_topologies", params)
+        return response.get('data', {})
+
+    def get_downstream_devices(self, site: str, upstream_device: str) -> List[str]:
+        """
+        Get downstream devices for an upstream device.
+
+        Args:
+            site: Site name
+            upstream_device: The upstream device name
+
+        Returns:
+            List of downstream device names
+        """
+        params = {'site_name': site, 'upstream_device': upstream_device}
+        response = self._get("/api/v1/inferred_topologies/for_device", params)
+        return response.get('data', {}).get('downstream_devices', [])
+
+    def record_topology(self, site: str, upstream_device: str,
+                       downstream_devices: List[str]) -> None:
+        """
+        Record a topology inference.
+
+        Args:
+            site: Site name
+            upstream_device: The upstream device
+            downstream_devices: List of downstream devices
+        """
+        data = {
+            'site_name': site,
+            'upstream_device': upstream_device,
+            'downstream_devices': downstream_devices
+        }
+        self._post("/api/v1/inferred_topologies", data)
+
+    # =========================================================================
     # Health Check
     # =========================================================================
 

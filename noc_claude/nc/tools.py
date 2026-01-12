@@ -199,109 +199,125 @@ class ToolExecutor:
             return f"Error fetching device history: {str(e)}"
             
     def _check_learned_patterns(self, params: Dict[str, Any]) -> str:
-        """Check for learned patterns."""
+        """Check for learned patterns via Rails API."""
         site = params.get("site")
         device = params.get("device")
-        
+
         if not site:
             return "Error: site parameter required"
-            
-        patterns = self.state.get_learned_patterns(site, device)
-        
+
+        try:
+            patterns = self.api.get_learned_patterns(site, device)
+        except Exception as e:
+            return f"Error fetching patterns: {str(e)}"
+
         if not patterns:
             target = f"{device}@{site}" if device else f"site '{site}'"
             return f"No learned patterns for {target}."
-            
+
         result_lines = [f"Known patterns for {device or 'site'} at {site}:"]
         for pattern in patterns:
+            confidence = pattern.get('confidence', 0.5)
+            occurrences = pattern.get('occurrences', 1)
             result_lines.append(
-                f"  - [{pattern.pattern_type}] {pattern.description} "
-                f"(confidence: {pattern.confidence:.0%}, seen {pattern.occurrences}x)"
+                f"  - [{pattern.get('pattern_type')}] {pattern.get('description')} "
+                f"(confidence: {confidence:.0%}, seen {occurrences}x)"
             )
-            if pattern.time_pattern:
-                result_lines.append(f"    Time window: {pattern.time_pattern}")
-                
+            if pattern.get('time_pattern'):
+                result_lines.append(f"    Time window: {pattern.get('time_pattern')}")
+
         return "\n".join(result_lines)
         
     def _search_past_incidents(self, params: Dict[str, Any]) -> str:
-        """Search past incidents."""
+        """Search past incidents via Rails API."""
         site = params.get("site")
         query = params.get("query", "")
-        
+
         if not site:
             return "Error: site parameter required"
-            
-        incidents = self.state.get_recent_incidents(site, days=90)
-        
+
+        try:
+            # Get all incidents (API doesn't have site filter yet, so filter locally)
+            incidents = self.api.get_incidents(status='resolved')
+        except Exception as e:
+            return f"Error fetching incidents: {str(e)}"
+
         # Simple search - filter by query terms in summary/root cause
         if query:
             query_lower = query.lower()
             incidents = [
                 i for i in incidents
-                if query_lower in (i.nc_summary or "").lower()
-                or query_lower in (i.human_root_cause or "").lower()
-                or query_lower in (i.nc_root_cause_guess or "").lower()
-                or any(query_lower in d.lower() for d in i.devices_affected)
+                if query_lower in (i.get('nc_summary') or "").lower()
+                or query_lower in (i.get('human_root_cause') or "").lower()
+                or query_lower in (i.get('nc_root_cause_guess') or "").lower()
+                or any(query_lower in d.lower() for d in i.get('devices_affected', []))
             ]
-            
+
         if not incidents:
             return f"No past incidents found for site '{site}'" + (f" matching '{query}'" if query else "")
-            
+
         result_lines = [f"Past incidents at {site}" + (f" matching '{query}'" if query else "") + ":"]
         for incident in incidents[:5]:
-            status = "resolved" if incident.resolved_at else "active"
+            status = "resolved" if incident.get('resolved_at') else "active"
             duration = ""
-            if incident.resolved_at and incident.started_at:
-                delta = incident.resolved_at - incident.started_at
-                duration = f", duration: {int(delta.total_seconds() / 60)}m"
-                
-            root_cause = incident.human_root_cause or incident.nc_root_cause_guess or "unknown"
+            duration_secs = incident.get('duration_seconds')
+            if duration_secs:
+                duration = f", duration: {int(duration_secs / 60)}m"
+
+            root_cause = incident.get('human_root_cause') or incident.get('nc_root_cause_guess') or "unknown"
+            started_at = incident.get('started_at', '')[:16].replace('T', ' ')  # Format datetime
             result_lines.append(
-                f"  - {incident.started_at.strftime('%Y-%m-%d %H:%M')}: "
-                f"{root_cause} ({status}{duration})"
+                f"  - {started_at}: {root_cause} ({status}{duration})"
             )
-            if incident.devices_affected:
-                result_lines.append(f"    Devices: {', '.join(incident.devices_affected)}")
-                
+            devices = incident.get('devices_affected', [])
+            if devices:
+                result_lines.append(f"    Devices: {', '.join(devices)}")
+
         if len(incidents) > 5:
             result_lines.append(f"  ... and {len(incidents) - 5} more incidents")
-            
+
         return "\n".join(result_lines)
         
     def _infer_topology(self, params: Dict[str, Any]) -> str:
-        """Record inferred topology relationship."""
+        """Record inferred topology relationship via Rails API."""
         site = params.get("site")
         upstream = params.get("upstream_device")
         downstream = params.get("downstream_devices", [])
-        
+
         if not site or not upstream or not downstream:
             return "Error: site, upstream_device, and downstream_devices required"
-            
-        self.state.record_topology_inference(site, upstream, downstream)
-        
+
+        try:
+            self.api.record_topology(site, upstream, downstream)
+        except Exception as e:
+            return f"Error recording topology: {str(e)}"
+
         return (
             f"Recorded topology inference: {upstream} appears to be upstream of "
             f"{', '.join(downstream)} at site '{site}'"
         )
-        
+
     def _record_pattern(self, params: Dict[str, Any]) -> str:
-        """Record a learned pattern."""
+        """Record a learned pattern via Rails API."""
         site = params.get("site")
         device = params.get("device")
         pattern_type = params.get("pattern_type")
         description = params.get("description")
         time_pattern = params.get("time_pattern")
-        
+
         if not site or not pattern_type or not description:
             return "Error: site, pattern_type, and description required"
-            
-        self.state.record_pattern(
-            site=site,
-            device=device,
-            pattern_type=pattern_type,
-            description=description,
-            time_pattern=time_pattern
-        )
-        
+
+        try:
+            self.api.record_pattern(
+                site=site,
+                pattern_type=pattern_type,
+                description=description,
+                device=device,
+                time_pattern=time_pattern
+            )
+        except Exception as e:
+            return f"Error recording pattern: {str(e)}"
+
         target = f"{device}@{site}" if device else f"site '{site}'"
         return f"Recorded pattern for {target}: [{pattern_type}] {description}"
