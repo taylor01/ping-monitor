@@ -19,6 +19,9 @@ class CreateIncidents < ActiveRecord::Migration[8.1]
 
     add_index :incidents, :started_at
     add_index :incidents, :resolved_at
-    add_index :incidents, [:site_id, :resolved_at]
+    add_index :incidents, :updated_at
+    add_index :incidents, :human_reviewed_at
+    add_index :incidents, :reported_in_summary
+    add_index :incidents, [ :site_id, :resolved_at ]
   end
 end

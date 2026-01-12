@@ -13,6 +13,8 @@ class CreateLearnedPatterns < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :learned_patterns, [:site_id, :device, :pattern_type], unique: true
+    add_index :learned_patterns, [ :site_id, :device, :pattern_type ], unique: true
+    add_index :learned_patterns, :device
+    add_index :learned_patterns, :confidence
   end
 end

@@ -5,7 +5,7 @@ class InferredTopology < ApplicationRecord
   validates :upstream_device, presence: true
   validates :downstream_device, presence: true
   validates :confidence, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }
-  validates :upstream_device, uniqueness: { scope: [:site_id, :downstream_device] }
+  validates :upstream_device, uniqueness: { scope: [ :site_id, :downstream_device ] }
 
   # Scopes
   scope :confident, -> { where("confidence >= 0.5") }
@@ -22,7 +22,7 @@ class InferredTopology < ApplicationRecord
 
       if topology.persisted?
         topology.observed_count += 1
-        topology.confidence = [0.95, topology.confidence + 0.15].min
+        topology.confidence = [ 0.95, topology.confidence + 0.15 ].min
       end
 
       topology.last_seen_at = Time.current

@@ -26,7 +26,7 @@ class LearnedPattern < ApplicationRecord
 
     if pattern.persisted?
       pattern.occurrences += 1
-      pattern.confidence = [0.95, pattern.confidence + 0.1].min
+      pattern.confidence = [ 0.95, pattern.confidence + 0.1 ].min
     end
 
     pattern.description = description

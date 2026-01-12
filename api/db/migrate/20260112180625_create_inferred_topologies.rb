@@ -11,8 +11,9 @@ class CreateInferredTopologies < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :inferred_topologies, [:site_id, :upstream_device, :downstream_device],
+    add_index :inferred_topologies, [ :site_id, :upstream_device, :downstream_device ],
               unique: true, name: "idx_topology_unique"
-    add_index :inferred_topologies, [:site_id, :upstream_device]
+    add_index :inferred_topologies, [ :site_id, :upstream_device ]
+    add_index :inferred_topologies, :confidence
   end
 end
