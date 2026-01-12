@@ -5,6 +5,9 @@ class Site < ApplicationRecord
   has_many :measurements, dependent: :destroy
   has_many :baselines, dependent: :destroy
   has_many :anomalies, dependent: :destroy
+  has_many :incidents, dependent: :destroy
+  has_many :learned_patterns, dependent: :destroy
+  has_many :inferred_topologies, dependent: :destroy
 
   # Validations
   validates :name, presence: true, uniqueness: true

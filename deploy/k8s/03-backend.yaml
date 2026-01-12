@@ -6,7 +6,7 @@ metadata:
   labels:
     app: ping-monitor-api
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: ping-monitor-api
@@ -119,3 +119,61 @@ spec:
   ports:
     - port: 3000
       targetPort: 3000
+---
+# Solid Queue Worker - processes background jobs (baseline calculation, anomaly detection, etc.)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ping-monitor-worker
+  namespace: ping-monitor
+  labels:
+    app: ping-monitor-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ping-monitor-worker
+  template:
+    metadata:
+      labels:
+        app: ping-monitor-worker
+    spec:
+      containers:
+        - name: worker
+          image: taylor01/ping_monitor_api:latest
+          command: ["./bin/jobs"]
+          env:
+            - name: RAILS_ENV
+              value: "production"
+            - name: RAILS_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: RAILS_MASTER_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: DATABASE_URL
+            - name: CACHE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: CACHE_DATABASE_URL
+            - name: QUEUE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: QUEUE_DATABASE_URL
+            - name: CABLE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ping-monitor-api-secrets
+                  key: CABLE_DATABASE_URL
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

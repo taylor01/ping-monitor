@@ -10,7 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_04_142437) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_12_180625) do
+  # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_catalog.plpgsql"
+
   create_table "agents", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description"
@@ -51,7 +54,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_04_142437) do
     t.datetime "updated_at", null: false
     t.index ["measurement_id"], name: "index_anomalies_on_measurement_id"
     t.index ["resolved_at"], name: "index_anomalies_on_resolved_at"
-    t.index ["severity", "created_at"], name: "index_active_anomalies_by_severity", where: "resolved_at IS NULL"
+    t.index ["severity", "created_at"], name: "index_active_anomalies_by_severity", where: "(resolved_at IS NULL)"
     t.index ["site_id", "created_at"], name: "index_anomalies_on_site_id_and_created_at"
     t.index ["site_id", "host", "created_at"], name: "index_anomalies_on_site_host_created"
     t.index ["site_id"], name: "index_anomalies_on_site_id"
@@ -85,6 +88,56 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_04_142437) do
     t.datetime "window_start"
     t.index ["site_id", "host"], name: "index_baselines_on_site_id_and_host", unique: true
     t.index ["site_id"], name: "index_baselines_on_site_id"
+  end
+
+  create_table "incidents", force: :cascade do |t|
+    t.boolean "auto_recovered", default: false
+    t.datetime "created_at", null: false
+    t.jsonb "devices_affected", default: []
+    t.text "human_notes"
+    t.datetime "human_reviewed_at"
+    t.text "human_root_cause"
+    t.text "nc_root_cause_guess"
+    t.text "nc_summary"
+    t.boolean "reported_in_summary", default: false
+    t.datetime "resolved_at"
+    t.string "severity", default: "normal"
+    t.bigint "site_id", null: false
+    t.datetime "started_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["resolved_at"], name: "index_incidents_on_resolved_at"
+    t.index ["site_id", "resolved_at"], name: "index_incidents_on_site_id_and_resolved_at"
+    t.index ["site_id"], name: "index_incidents_on_site_id"
+    t.index ["started_at"], name: "index_incidents_on_started_at"
+  end
+
+  create_table "inferred_topologies", force: :cascade do |t|
+    t.float "confidence", default: 0.5
+    t.datetime "created_at", null: false
+    t.string "downstream_device", null: false
+    t.datetime "last_seen_at"
+    t.integer "observed_count", default: 1
+    t.bigint "site_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "upstream_device", null: false
+    t.index ["site_id", "upstream_device", "downstream_device"], name: "idx_topology_unique", unique: true
+    t.index ["site_id", "upstream_device"], name: "index_inferred_topologies_on_site_id_and_upstream_device"
+    t.index ["site_id"], name: "index_inferred_topologies_on_site_id"
+  end
+
+  create_table "learned_patterns", force: :cascade do |t|
+    t.float "confidence", default: 0.5
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "device"
+    t.datetime "last_seen_at"
+    t.integer "occurrences", default: 1
+    t.string "pattern_type", null: false
+    t.bigint "site_id", null: false
+    t.string "time_pattern"
+    t.datetime "updated_at", null: false
+    t.index ["site_id", "device", "pattern_type"], name: "index_learned_patterns_on_site_id_and_device_and_pattern_type", unique: true
+    t.index ["site_id"], name: "index_learned_patterns_on_site_id"
   end
 
   create_table "measurements", force: :cascade do |t|
@@ -129,5 +182,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_04_142437) do
   add_foreign_key "anomalies", "measurements"
   add_foreign_key "anomalies", "sites"
   add_foreign_key "baselines", "sites"
+  add_foreign_key "incidents", "sites"
+  add_foreign_key "inferred_topologies", "sites"
+  add_foreign_key "learned_patterns", "sites"
   add_foreign_key "measurements", "sites"
 end

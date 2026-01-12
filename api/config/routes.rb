@@ -34,6 +34,23 @@ Rails.application.routes.draw do
 
       # Baselines
       resources :baselines, only: [ :index, :show ], param: :host
+
+      # NC Intelligence API
+      resources :incidents, only: [ :index, :show, :create, :update ] do
+        member do
+          patch :resolve
+          patch :review
+          patch :mark_reported
+        end
+      end
+
+      resources :learned_patterns, only: [ :index, :show, :create, :destroy ]
+
+      resources :inferred_topologies, only: [ :index, :create ] do
+        collection do
+          get :for_device
+        end
+      end
     end
   end
 end

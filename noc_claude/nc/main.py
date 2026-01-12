@@ -159,6 +159,8 @@ class NOCClaude:
         # Handle Claude's decision
         if result.action == "wait":
             self.output.site_status(site, "WATCHING", result.reason)
+            # Reset to WATCHING so timeout must elapse again before re-investigating
+            self.state.set_concern_level(site, "WATCHING")
         elif result.action == "escalate":
             self._escalate(site, result)
         elif result.action == "resolved":
@@ -166,16 +168,23 @@ class NOCClaude:
             
     def _escalate(self, site: str, result):
         """Escalate an issue to humans."""
-        incident = self.state.create_incident(
-            site=site,
-            summary=result.summary,
-            nc_root_cause_guess=result.root_cause_guess,
-            devices_affected=result.devices_affected,
-            severity=result.severity
-        )
-        
+        # Create incident via Rails API
+        try:
+            incident = self.api.create_incident(
+                site=site,
+                devices_affected=result.devices_affected,
+                severity=result.severity,
+                nc_root_cause_guess=result.root_cause_guess
+            )
+            # Store the incident ID in local state for later resolution
+            self.state.set_active_incident_id(site, incident.get('id'))
+        except Exception as e:
+            self.output.error(f"Failed to create incident via API: {e}")
+            # Fall back to local tracking
+            incident = {'id': None}
+
         self.output.escalate(site, result.summary)
-        
+
         if self.time.is_quiet_hours():
             if result.severity == "major":
                 self.output.critical(site, f"CRITICAL during quiet hours: {result.summary}")
@@ -183,52 +192,91 @@ class NOCClaude:
                 self.output.waiting(site, "humans likely asleep, queued for morning summary")
         else:
             self.output.attention(site, result.summary)
-            
+
         self.state.set_concern_level(site, "ESCALATED")
         
     def _mark_auto_resolved(self, site: str, result):
         """Mark an incident as auto-resolved."""
-        self.state.resolve_incident(
-            site=site,
-            auto_recovered=True,
-            nc_summary=result.summary
-        )
+        # Resolve incident via Rails API
+        incident_id = self.state.get_active_incident_id(site)
+        if incident_id:
+            try:
+                self.api.resolve_incident(
+                    incident_id=incident_id,
+                    auto_recovered=True,
+                    nc_summary=result.summary
+                )
+            except Exception as e:
+                self.output.error(f"Failed to resolve incident via API: {e}")
+            self.state.clear_active_incident_id(site)
+
         self.output.recovered(site, result.summary)
         self.state.set_concern_level(site, "NORMAL")
-        
+
     def _check_recoveries(self):
         """Check if any escalated sites have recovered."""
         for site in self.state.get_escalated_sites():
             context = self.state.get_site_context(site)
-            
+
             # If all alerts cleared, mark as recovered
             if not context.active_alerts:
-                incident = self.state.get_active_incident(site)
-                if incident:
-                    duration = datetime.now(timezone.utc) - incident.started_at
-                    self.state.resolve_incident(
-                        site=site,
-                        auto_recovered=True,
-                        nc_summary=f"All devices recovered (duration: {self._format_duration(duration)})"
-                    )
-                    self.output.recovered(
-                        site, 
-                        f"all devices back online (duration: {self._format_duration(duration)})"
-                    )
-                    self.output.pending(site, "need root cause from human")
+                incident_id = self.state.get_active_incident_id(site)
+                if incident_id:
+                    # Get incident from API to calculate duration
+                    try:
+                        incident = self.api.get_incident(incident_id)
+                        if incident and incident.get('started_at'):
+                            started_at = datetime.fromisoformat(incident['started_at'].replace('Z', '+00:00'))
+                            duration = datetime.now(timezone.utc) - started_at
+                            nc_summary = f"All devices recovered (duration: {self._format_duration(duration)})"
+                        else:
+                            duration = None
+                            nc_summary = "All devices recovered"
+
+                        self.api.resolve_incident(
+                            incident_id=incident_id,
+                            auto_recovered=True,
+                            nc_summary=nc_summary
+                        )
+                        self.output.recovered(
+                            site,
+                            f"all devices back online" + (f" (duration: {self._format_duration(duration)})" if duration else "")
+                        )
+                        self.output.pending(site, "need root cause from human")
+                    except Exception as e:
+                        self.output.error(f"Failed to resolve incident via API: {e}")
+                    self.state.clear_active_incident_id(site)
                 self.state.set_concern_level(site, "NORMAL")
                 
     def _do_morning_summary(self):
         """Generate and output the morning summary."""
         self.output.morning_summary_header()
-        
+
+        # Get incidents from Rails API
+        try:
+            overnight_incidents = self.api.get_incidents(not_reported=True)
+            pending_review = self.api.get_incidents(status='pending_review')
+        except Exception as e:
+            self.output.error(f"Failed to fetch incidents from API: {e}")
+            overnight_incidents = []
+            pending_review = []
+
         summary = self.claude.generate_morning_summary(
-            overnight_incidents=self.state.get_incidents_since_last_summary(),
-            pending_review=self.state.get_pending_human_review(),
+            overnight_incidents=overnight_incidents,
+            pending_review=pending_review,
             site_statuses=self.state.get_all_site_statuses()
         )
-        
+
         self.output.morning_summary_body(summary)
+
+        # Mark incidents as reported via API
+        for incident in overnight_incidents:
+            if incident.get('id'):
+                try:
+                    self.api.mark_incident_reported(incident['id'])
+                except Exception:
+                    pass  # Best effort
+
         self.state.mark_summary_done()
         
     def _format_duration(self, delta) -> str:

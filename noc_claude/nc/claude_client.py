@@ -307,6 +307,29 @@ class InvestigationResult:
 
 NETWORK_TOOLS = {"ping_device", "check_tailscale_status"}
 
+CLOUD_DEPLOYMENT_ADDENDUM = """
+
+IMPORTANT - CLOUD DEPLOYMENT MODE:
+You are running in cloud deployment mode WITHOUT direct network access to monitored sites.
+The ping_device and check_tailscale_status tools are NOT available.
+
+In this mode, you CANNOT directly verify if devices are up or down by pinging them.
+Instead, you must rely on:
+1. The monitoring API data (query_alerts, get_device_history) - this is your source of truth
+2. Historical patterns (check_learned_patterns, search_past_incidents)
+3. Timing analysis - how long has the alert been active?
+4. Correlation - are multiple devices affected suggesting upstream issue?
+
+REVISED DECISION FRAMEWORK for cloud mode:
+1. If a single device alert has been active < 5 minutes → WAIT (may be transient)
+2. If multiple devices on same site go down within seconds → likely upstream issue, ESCALATE
+3. If device has history of being flaky → WAIT longer before escalating
+4. If alert persists > 5 minutes with no recovery → ESCALATE
+5. If all site alerts resolve → RESOLVED
+
+Trust the monitoring system's data. The site's local monitor is reporting what it sees directly.
+"""
+
 
 class ClaudeClient:
     """Wrapper for Claude API interactions."""
@@ -337,13 +360,18 @@ Use tools as needed to diagnose the issue, then provide your decision.
 Remember to end with a clear DECISION block."""
         }]
         
+        # Build system prompt - add cloud mode addendum if network tools disabled
+        system_prompt = NC_SYSTEM_PROMPT
+        if self.disable_network_tools:
+            system_prompt += CLOUD_DEPLOYMENT_ADDENDUM
+
         # Agentic loop - let Claude use tools until it reaches a decision
         max_iterations = 10
         for _ in range(max_iterations):
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4096,
-                system=NC_SYSTEM_PROMPT,
+                system=system_prompt,
                 tools=self._get_available_tools(),
                 messages=messages
             )
